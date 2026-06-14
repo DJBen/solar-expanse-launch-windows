@@ -19,6 +19,15 @@ namespace SolarExpanseLaunchWindows
             this.dvToKmS = dvToKmS;
         }
 
+        internal double GetSynodic(string originId, string destId)
+        {
+            double tO = ephem.GetPeriod(originId);
+            double tD = ephem.GetPeriod(destId);
+            if (tO <= 0 || tD <= 0) return 0;
+            double freqDiff = Math.Abs(1.0 / tO - 1.0 / tD);
+            return freqDiff > 0 ? 1.0 / freqDiff : tO;
+        }
+
         public (LaunchWindow? optimal, LaunchWindow? fastest, double synodicPeriod) FindWindows(
             string originId, string destId, double physNow, double dvCap = double.MaxValue)
         {

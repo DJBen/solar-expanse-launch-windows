@@ -6,7 +6,7 @@ namespace SolarExpanseLaunchWindows
     // Wraps LambertPorkchop.ComputeLambert2 — the exact method the game uses for its porkchop grid.
     // ComputeLambert2 retries with reverse=true when v1 is retrograde (dot(v1,departVel)<0),
     // matching the game's arc-selection logic.
-    internal class GameLambertSolver
+    internal class GameLambertSolver : ILambertSolver
     {
         private readonly MethodInfo computeLambert2;
         private readonly FieldInfo item1, item2, item3;

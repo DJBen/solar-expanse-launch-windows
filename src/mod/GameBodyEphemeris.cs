@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace SolarExpanseLaunchWindows
 {
-    internal class GameBodyEphemeris
+    internal class GameBodyEphemeris : IBodyEphemeris
     {
         private readonly Dictionary<string, OrbitUniversal> orbitsById;
         private readonly Dictionary<string, string> namesById;
@@ -35,7 +35,7 @@ namespace SolarExpanseLaunchWindows
         public IEnumerable<string> AllBodyIds => orbitsById.Keys;
 
         // Call from the main thread before using GetState on a background thread.
-        internal void SnapshotPropagators()
+        public void SnapshotPropagators()
         {
             propCache.Clear();
             foreach (var kv in orbitsById)

@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "dgSpecHash": "tCbIB6GWy5w=",
+  "success": true,
+  "projectFilePath": "/Users/aaronstockmeister/src/solar-expanse-launch-windows/src/tests/SolarExpanseLaunchWindowsTests.csproj",
+  "expectedPackageFiles": [
+    "/Users/aaronstockmeister/.nuget/packages/coverlet.collector/10.0.1/coverlet.collector.10.0.1.nupkg.sha512",
+    "/Users/aaronstockmeister/.nuget/packages/microsoft.codecoverage/17.8.0/microsoft.codecoverage.17.8.0.nupkg.sha512",
+    "/Users/aaronstockmeister/.nuget/packages/microsoft.net.test.sdk/17.8.0/microsoft.net.test.sdk.17.8.0.nupkg.sha512",
+    "/Users/aaronstockmeister/.nuget/packages/microsoft.netcore.platforms/1.1.0/microsoft.netcore.platforms.1.1.0.nupkg.sha512",
+    "/Users/aaronstockmeister/.nuget/packages/microsoft.testplatform.objectmodel/17.8.0/microsoft.testplatform.objectmodel.17.8.0.nupkg.sha512",
+    "/Users/aaronstockmeister/.nuget/packages/microsoft.testplatform.testhost/17.8.0/microsoft.testplatform.testhost.17.8.0.nupkg.sha512",
+    "/Users/aaronstockmeister/.nuget/packages/netstandard.library/2.0.0/netstandard.library.2.0.0.nupkg.sha512",
+    "/Users/aaronstockmeister/.nuget/packages/newtonsoft.json/13.0.1/newtonsoft.json.13.0.1.nupkg.sha512",
+    "/Users/aaronstockmeister/.nuget/packages/nuget.frameworks/6.5.0/nuget.frameworks.6.5.0.nupkg.sha512",
+    "/Users/aaronstockmeister/.nuget/packages/nunit/3.14.0/nunit.3.14.0.nupkg.sha512",
+    "/Users/aaronstockmeister/.nuget/packages/nunit3testadapter/4.5.0/nunit3testadapter.4.5.0.nupkg.sha512"
+  ],
+  "logs": []
+}

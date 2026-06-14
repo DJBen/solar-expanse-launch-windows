@@ -557,11 +557,41 @@ namespace SolarExpanseLaunchWindows.UI
         }
     }
 
-    // ── Always-active ticker ──────────────────────────────────────────────────────────────────
-    internal class LWUpdater : MonoBehaviour
+    // ── Always-active ticker + save/load provider ─────────────────────────────────────────────
+    internal class LWUpdater : MonoBehaviour, Manager.ISaveStateDataProvider
     {
         internal LaunchWindowPanel Panel;
         void Update() { Panel?.UpdateTick(); }
+
+        public void BeforeSaveState()  {}
+        public void AfterSaveState(bool success) {}
+        public void BeforeLoadState() {}
+        public void AfterLoadState(bool success) {}
+        public int  SaveStateDataPriority() => 0;
+
+        public bool InjectIntoSaveGameData(Manager.SaveGameData saveGameData)
+        {
+            try
+            {
+                var lsm = UnityEngine.Object.FindObjectOfType<Manager.LoadSaveManager>();
+                if (lsm != null && !string.IsNullOrEmpty(lsm.LastSaveName))
+                    Panel?.SaveToSidecar(lsm.LastSaveName);
+            }
+            catch (Exception ex) { Plugin.Log.LogWarning($"[LW] InjectIntoSaveGameData: {ex.Message}"); }
+            return true;
+        }
+
+        public bool ExtractFromSaveGameData(Manager.SaveGameData saveGameData)
+        {
+            try
+            {
+                var lsm = UnityEngine.Object.FindObjectOfType<Manager.LoadSaveManager>();
+                if (lsm != null && !string.IsNullOrEmpty(lsm.LastSaveName))
+                    Panel?.LoadFromSidecar(lsm.LastSaveName);
+            }
+            catch (Exception ex) { Plugin.Log.LogWarning($"[LW] ExtractFromSaveGameData: {ex.Message}"); }
+            return true;
+        }
     }
 
     // ── Toggle button + drag ──────────────────────────────────────────────────────────────────

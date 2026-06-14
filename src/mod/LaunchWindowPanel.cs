@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -77,6 +78,20 @@ namespace SolarExpanseLaunchWindows
         private string _pendingSearch;
         private string _lastSearch;
 
+        // Alarm state
+        private readonly HashSet<AlarmKey> _alarms     = new HashSet<AlarmKey>();
+        private readonly HashSet<AlarmKey> _firedAlarms = new HashSet<AlarmKey>();
+        private readonly HashSet<string>  _needsOpt2Recalc = new HashSet<string>();
+        internal IGameClock _clock = new GameClock();
+
+        // Per-row checkbox buttons: [0]=row1 (opt1), [1]=row2 (opt2)
+        private readonly Dictionary<string, Button[]> rowCheckboxBtns = new Dictionary<string, Button[]>();
+
+        // Sidecar load/apply state
+        private bool      _sidecarLoaded;
+        private bool      _sidecarApplied;
+        private LWSaveData _sidecarData;
+
         private string OriginId => originIds.Count > 0 ? originIds[originIndex % originIds.Count] : null;
 
         void Start()
@@ -91,8 +106,10 @@ namespace SolarExpanseLaunchWindows
 
         internal void UpdateTick()
         {
-            if (!gameObject.activeSelf) return;
             TryBuildEphem();
+            TryApplySidecarData();
+            CheckAlarms();
+            if (!gameObject.activeSelf) return;
             if (_calcDone)
             {
                 _calcDone = false;
@@ -226,6 +243,12 @@ namespace SolarExpanseLaunchWindows
                     UpdateOriginLabel();
                     HideOriginDropdown();
                     ClearAllRowData();
+                    if (destIds.Count == 0 && ephem != null)
+                    {
+                        var earthId = ephem.AllBodyIds.FirstOrDefault(id =>
+                            string.Equals(ephem.GetDisplayName(id), "Earth", StringComparison.OrdinalIgnoreCase));
+                        if (earthId != null && earthId != OriginId) destIds.Add(earthId);
+                    }
                     needsRefresh = true;
                 });
             }
@@ -364,8 +387,6 @@ namespace SolarExpanseLaunchWindows
                             System.StringComparison.OrdinalIgnoreCase));
                     if (originIndex < 0) originIndex = 0;
                 }
-                if (destIds.Count == 0)
-                    destIds = new List<string>(ephem.GetSortedPlanetIds());
 
                 UpdateOriginLabel();
             }
@@ -639,14 +660,17 @@ namespace SolarExpanseLaunchWindows
                     if (tmp != null) { tmp.text = "—"; tmp.color = DashColor; }
         }
 
+        private bool HasValidCache(string dId, double physNow)
+        {
+            if (!cache.TryGetValue(dId, out var entry)) return false;
+            return entry.opt1.HasValue && entry.opt1.Value.DepartureEpoch > physNow;
+        }
+
         private void DoRefresh()
         {
             refreshing   = true;
             needsRefresh = false;
             if (ephem == null || finder == null || OriginId == null) { refreshing = false; return; }
-
-            if (StatusTMP != null) StatusTMP.text = "Calculating…";
-            if (CalcOverlayGO != null) CalcOverlayGO.SetActive(true);
 
             var ge = GravityEngine.Instance();
             if (ge == null) { refreshing = false; if (CalcOverlayGO != null) CalcOverlayGO.SetActive(false); return; }
@@ -654,6 +678,35 @@ namespace SolarExpanseLaunchWindows
             double dvCap      = _craftDvCapGameUnits;
             var destSnap      = new System.Collections.Generic.List<string>(destIds);
             var originId      = OriginId;
+
+            // Full recalc (cache absent or opt1 stale) vs. partial (promoted: opt1 valid, opt2 missing).
+            var needsOpt2Snap = new HashSet<string>(_needsOpt2Recalc);
+            var toCalcFull    = new List<string>();
+            var toCalcPartial = new List<(string dId, LaunchWindow opt1, LaunchWindow? fst1)>();
+            foreach (var dId in destSnap)
+            {
+                if (dId == originId) continue;
+                if (!HasValidCache(dId, physNow))
+                    toCalcFull.Add(dId);
+                else if (needsOpt2Snap.Contains(dId) && cache.TryGetValue(dId, out var ce) && ce.opt1.HasValue)
+                    toCalcPartial.Add((dId, ce.opt1.Value, ce.fst1));
+            }
+
+            if (toCalcFull.Count == 0 && toCalcPartial.Count == 0)
+            {
+                // Everything is cached — rebuild UI immediately without a background thread.
+                refreshing = false;
+                RebuildRows();
+                ApplySort();
+                UpdateAllCheckboxVisuals();
+                if (StatusTMP != null) StatusTMP.text = $"Updated: {FormatNow()} (cached)";
+                if (CalcOverlayGO != null) CalcOverlayGO.SetActive(false);
+                return;
+            }
+
+            if (StatusTMP != null) StatusTMP.text = "Calculating…";
+            if (CalcOverlayGO != null) CalcOverlayGO.SetActive(true);
+
             var ephemSnap     = ephem;
             var dvToKmSSnap   = dvToKmS;
 
@@ -667,10 +720,9 @@ namespace SolarExpanseLaunchWindows
                 var results     = new Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>();
                 var resultsLock = new object();
 
-                // Each parallel worker gets its own WindowFinder/GameLambertSolver so there is no
-                // shared mutable state between threads.
+                // Full recalcs: two FindWindows calls (opt1 + opt2).
                 Parallel.ForEach<string, WindowFinder>(
-                    destSnap.Where(dId => dId != originId),
+                    toCalcFull,
                     () => new WindowFinder(new GameLambertSolver(), ephemSnap, dvToKmSSnap),
                     (dId, _, localFinder) =>
                     {
@@ -697,6 +749,34 @@ namespace SolarExpanseLaunchWindows
                     _ => { }
                 );
 
+                // Partial recalcs: opt1 already known (promoted from opt2); one scan for new opt2.
+                Parallel.ForEach<(string dId, LaunchWindow opt1, LaunchWindow? fst1), WindowFinder>(
+                    toCalcPartial,
+                    () => new WindowFinder(new GameLambertSolver(), ephemSnap, dvToKmSSnap),
+                    (item, _, localFinder) =>
+                    {
+                        try
+                        {
+                            double syn = localFinder.GetSynodic(originId, item.dId);
+                            // Back off 30 days so we don't clip the leading edge of the window if
+                            // opt1 landed near the tail of the previous window.
+                            double thirtyDays = ephemSnap.GetPeriod(originId) / 12.0;
+                            double startTime  = syn > 0
+                                ? item.opt1.DepartureEpoch + syn - thirtyDays
+                                : item.opt1.DepartureEpoch;
+                            var (o2, f2, _) = localFinder.FindWindows(originId, item.dId, startTime, dvCap);
+                            lock (resultsLock) { results[item.dId] = (item.opt1, item.fst1, o2, f2); }
+                        }
+                        catch (Exception ex)
+                        {
+                            Plugin.Log.LogError($"[LW] FindWindows opt2 {item.dId}: {ex.Message}");
+                            lock (resultsLock) { results[item.dId] = (item.opt1, item.fst1, null, null); }
+                        }
+                        return localFinder;
+                    },
+                    _ => { }
+                );
+
                 _pendingCache = results;
                 _calcDone = true;   // volatile write: flush _pendingCache before signalling
             });
@@ -709,11 +789,13 @@ namespace SolarExpanseLaunchWindows
             if (_pendingCache == null) { refreshing = false; return; }
             try
             {
-                cache.Clear();
+                // Merge new results; existing valid cache entries for un-recalculated dests survive.
                 foreach (var kv in _pendingCache) cache[kv.Key] = kv.Value;
                 _pendingCache = null;
+                _needsOpt2Recalc.Clear();
                 RebuildRows();
                 ApplySort();
+                UpdateAllCheckboxVisuals();
                 lastRefreshTime = Time.realtimeSinceStartup;
                 if (StatusTMP != null) StatusTMP.text = $"Updated: {FormatNow()}";
             }
@@ -744,6 +826,7 @@ namespace SolarExpanseLaunchWindows
             foreach (var dId in rowTMPs.Keys.Where(k => !destIds.Contains(k) || k == OriginId).ToList())
             {
                 rowTMPs.Remove(dId);
+                rowCheckboxBtns.Remove(dId);
                 var t = ContentParent.Find("Row_" + dId);
                 if (t != null) Destroy(t.gameObject);
             }
@@ -765,12 +848,13 @@ namespace SolarExpanseLaunchWindows
         }
 
         // Sub-column widths — must match injector sub-header widths exactly.
-        // Optimal: dep=62, dv=78, tvl=flex (within 255px group)
+        // Optimal: dep=62 (cb 12 + text 50), dv=78, tvl=flex (within 255px group)
         // Fastest: dep=70, dv=88, tvl=flex (within 255px group)
-        private const float OPT_DEP_W = 62f;
-        private const float OPT_DV_W  = 78f;
-        private const float FST_DEP_W = 70f;
-        private const float FST_DV_W  = 88f;
+        private const float CB_W       = 12f;
+        private const float OPT_DEP_W  = 62f;
+        private const float OPT_DV_W   = 78f;
+        private const float FST_DEP_W  = 70f;
+        private const float FST_DV_W   = 88f;
 
         private void CreateRow(string dId)
         {
@@ -841,8 +925,26 @@ namespace SolarExpanseLaunchWindows
             xTMP.color = new Color(1f, 0.55f, 0.55f); xTMP.enableWordWrapping = false;
             xTMP.raycastTarget = false;
 
-            // Optimal: Dep / Dv / Travel  |gap|  Fastest: Dep / Dv / Travel
-            var oD  = MakeDataGroup(inner.transform, out var oDv, out var oTvl, isOptimal: true);
+            // Optimal group: [cb+dep | dv | tvl]  |gap|  Fastest: [dep | dv | tvl]
+            var oGroup = new GameObject("OptCol", typeof(RectTransform));
+            oGroup.transform.SetParent(inner.transform, false);
+            oGroup.AddComponent<LayoutElement>().preferredWidth = 255f;
+            var oHlg = oGroup.AddComponent<HorizontalLayoutGroup>();
+            oHlg.childControlHeight = true; oHlg.childControlWidth = true;
+            oHlg.childForceExpandHeight = true; oHlg.childForceExpandWidth = false;
+            oHlg.spacing = 0f;
+            // Dep cell wraps checkbox + text within OPT_DEP_W total
+            var oDCell = new GameObject("DepC", typeof(RectTransform));
+            oDCell.transform.SetParent(oGroup.transform, false);
+            oDCell.AddComponent<LayoutElement>().preferredWidth = OPT_DEP_W;
+            var oDHlg = oDCell.AddComponent<HorizontalLayoutGroup>();
+            oDHlg.childControlHeight = true; oDHlg.childControlWidth = true;
+            oDHlg.childForceExpandHeight = true; oDHlg.childForceExpandWidth = false;
+            oDHlg.spacing = 0f;
+            var cb1 = MakeCheckboxButton(oDCell.transform);
+            var oD  = MakeColLabel(oDCell.transform, "—", 10f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
+            var oDv  = MakeColLabel(oGroup.transform, "—", 10f, TextAlignmentOptions.Left, OPT_DV_W);
+            var oTvl = MakeColLabel(oGroup.transform, "—", 10f, TextAlignmentOptions.Left, 0f, flex: true);
             var sep1 = new GameObject("Sep", typeof(RectTransform));
             sep1.transform.SetParent(inner.transform, false);
             sep1.AddComponent<LayoutElement>().preferredWidth = 8f;
@@ -869,7 +971,16 @@ namespace SolarExpanseLaunchWindows
             ns.AddComponent<LayoutElement>().preferredWidth = 105f;
 
             Color dimC = new Color(0.50f, 0.50f, 0.50f);
-            var noD  = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, OPT_DEP_W, dimC);
+            // Row-2 opt2 dep cell: checkbox + text within OPT_DEP_W
+            var noD2Cell = new GameObject("DepC2", typeof(RectTransform));
+            noD2Cell.transform.SetParent(inner2.transform, false);
+            noD2Cell.AddComponent<LayoutElement>().preferredWidth = OPT_DEP_W;
+            var noD2Hlg = noD2Cell.AddComponent<HorizontalLayoutGroup>();
+            noD2Hlg.childControlHeight = true; noD2Hlg.childControlWidth = true;
+            noD2Hlg.childForceExpandHeight = true; noD2Hlg.childForceExpandWidth = false;
+            noD2Hlg.spacing = 0f;
+            var cb2 = MakeCheckboxButton(noD2Cell.transform, forRow2: true);
+            var noD  = MakeColLabel(noD2Cell.transform, "—", 9f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W, dimC);
             var noDv = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
             var noTvl = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
             var sep2 = new GameObject("Sep2", typeof(RectTransform));
@@ -882,6 +993,11 @@ namespace SolarExpanseLaunchWindows
             // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
             // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
             rowTMPs[dId] = new[] { oD, oDv, oTvl, fD, fDv, fTvl, noD, noDv, noTvl, nfD, nfDv, nfTvl };
+
+            var capDest = dId;
+            cb1.onClick.AddListener(() => ToggleAlarmForRow(capDest, isRow2: false));
+            cb2.onClick.AddListener(() => ToggleAlarmForRow(capDest, isRow2: true));
+            rowCheckboxBtns[dId] = new[] { cb1, cb2 };
         }
 
         private TextMeshProUGUI MakeDataGroup(Transform parent,
@@ -908,7 +1024,8 @@ namespace SolarExpanseLaunchWindows
             destIds.Remove(dId);
             cache.Remove(dId);
             rowTMPs.Remove(dId);
-            // Container GO holds the row; child "HLG" contains the interactive content.
+            rowCheckboxBtns.Remove(dId);
+            _alarms.RemoveWhere(k => k.DestId == dId);
             var t = ContentParent?.Find("Row_" + dId);
             if (t != null) Destroy(t.gameObject);
         }
@@ -1010,5 +1127,278 @@ namespace SolarExpanseLaunchWindows
             }
             catch { return ""; }
         }
+
+        // ── Alarm checking ────────────────────────────────────────────────────────
+
+        private void CheckAlarms()
+        {
+            if (_alarms.Count == 0 || _clock == null) return;
+            var toFire = LWCacheHelper.GetAlarmsToFire(_alarms, OriginId, _clock.CurrentTime);
+            foreach (var key in toFire)
+            {
+                _alarms.Remove(key);
+                _firedAlarms.Add(key);
+                FireAlarm(key);
+            }
+        }
+
+        private void FireAlarm(AlarmKey key)
+        {
+            try { _clock?.PauseGame(); }
+            catch (Exception ex) { Plugin.Log.LogWarning($"[LW] PauseGame: {ex.Message}"); }
+
+            string destName   = ephem?.GetDisplayName(key.DestId)   ?? key.DestId;
+            string originName = ephem?.GetDisplayName(key.OriginId) ?? key.OriginId;
+            SpawnToast($"Launch window: {originName} → {destName}");
+            UpdateAllCheckboxVisuals();
+        }
+
+        private void SpawnToast(string message)
+        {
+            var canvas = GetComponentInParent<Canvas>();
+            if (canvas == null) return;
+
+            var toastGO = new GameObject("LWToast", typeof(RectTransform));
+            toastGO.transform.SetParent(canvas.transform, false);
+            toastGO.AddComponent<LayoutElement>().ignoreLayout = true;
+
+            var toastRT = toastGO.GetComponent<RectTransform>();
+            toastRT.anchorMin        = new Vector2(0.5f, 0f);
+            toastRT.anchorMax        = new Vector2(0.5f, 0f);
+            toastRT.pivot            = new Vector2(0.5f, 0f);
+            toastRT.sizeDelta        = new Vector2(300f, 40f);
+            toastRT.anchoredPosition = new Vector2(0f, 60f);
+
+            var bg = toastGO.AddComponent<Image>();
+            bg.color = new Color(0.05f, 0.50f, 0.58f, 0.95f);
+            bg.raycastTarget = true;
+
+            var hlg = toastGO.AddComponent<HorizontalLayoutGroup>();
+            hlg.childControlHeight = true; hlg.childControlWidth = true;
+            hlg.childForceExpandHeight = true; hlg.childForceExpandWidth = false;
+            hlg.padding = new RectOffset(8, 2, 4, 4); hlg.spacing = 4f;
+
+            var msgGO = new GameObject("Msg", typeof(RectTransform));
+            msgGO.transform.SetParent(toastGO.transform, false);
+            msgGO.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            var msgTMP = msgGO.AddComponent<TextMeshProUGUI>();
+            if (FontAsset != null) msgTMP.font = FontAsset;
+            msgTMP.text = message; msgTMP.fontSize = 11f;
+            msgTMP.color = Color.white; msgTMP.alignment = TextAlignmentOptions.Left;
+            msgTMP.enableWordWrapping = false; msgTMP.overflowMode = TextOverflowModes.Ellipsis;
+            msgTMP.raycastTarget = false;
+
+            var closeGO = new GameObject("X", typeof(RectTransform));
+            closeGO.transform.SetParent(toastGO.transform, false);
+            var closeLE = closeGO.AddComponent<LayoutElement>(); closeLE.preferredWidth = 24f;
+            var closeImg = closeGO.AddComponent<Image>(); closeImg.color = new Color(1f, 1f, 1f, 0.08f);
+            var closeBtn = closeGO.AddComponent<Button>(); closeBtn.targetGraphic = closeImg;
+            var cc = closeBtn.colors; cc.highlightedColor = new Color(1f, 1f, 1f, 0.25f); closeBtn.colors = cc;
+            var capToast = toastGO;
+            closeBtn.onClick.AddListener(() => Destroy(capToast));
+            var closeLbl = new GameObject("L", typeof(RectTransform));
+            closeLbl.transform.SetParent(closeGO.transform, false);
+            var clRT = closeLbl.GetComponent<RectTransform>();
+            clRT.anchorMin = Vector2.zero; clRT.anchorMax = Vector2.one; clRT.sizeDelta = Vector2.zero;
+            var closeTMP = closeLbl.AddComponent<TextMeshProUGUI>();
+            if (FontAsset != null) closeTMP.font = FontAsset;
+            closeTMP.text = "×"; closeTMP.fontSize = 14f;
+            closeTMP.alignment = TextAlignmentOptions.Center;
+            closeTMP.color = Color.white; closeTMP.raycastTarget = false; closeTMP.enableWordWrapping = false;
+        }
+
+        // ── Checkbox helpers ──────────────────────────────────────────────────────
+
+        private static readonly Color CbUncheckedBg = new Color(0.15f, 0.17f, 0.20f, 0.6f);
+        private static readonly Color CbCheckedBg   = new Color(0.05f, 0.55f, 0.62f, 0.85f);
+        private static readonly Color CbUncheckedFg = new Color(0.4f, 0.4f, 0.4f);
+        private static readonly Color CbCheckedFg   = Color.white;
+
+        private Button MakeCheckboxButton(Transform parent, bool forRow2 = false)
+        {
+            var go  = new GameObject("CB", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            go.AddComponent<LayoutElement>().preferredWidth = 12f;
+            var img = go.AddComponent<Image>(); img.color = CbUncheckedBg;
+            var btn = go.AddComponent<Button>(); btn.targetGraphic = img;
+            var cols = btn.colors; cols.highlightedColor = new Color(0.15f, 0.28f, 0.32f, 0.9f); btn.colors = cols;
+            var lbl = new GameObject("L", typeof(RectTransform));
+            lbl.transform.SetParent(go.transform, false);
+            var lblRT = lbl.GetComponent<RectTransform>();
+            lblRT.anchorMin = Vector2.zero; lblRT.anchorMax = Vector2.one; lblRT.sizeDelta = Vector2.zero;
+            var tmp = lbl.AddComponent<TextMeshProUGUI>();
+            if (FontAsset != null) tmp.font = FontAsset;
+            tmp.text = "□"; tmp.fontSize = forRow2 ? 7f : 8f;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = CbUncheckedFg; tmp.enableWordWrapping = false; tmp.raycastTarget = false;
+            btn.gameObject.SetActive(false); // hidden until window data available
+            return btn;
+        }
+
+        private void ToggleAlarmForRow(string destId, bool isRow2)
+        {
+            if (!cache.TryGetValue(destId, out var entry)) return;
+            var window = isRow2 ? entry.opt2 : entry.opt1;
+            if (window == null || ephem == null) return;
+            if (!TryEpochToDate(window.Value.DepartureEpoch, out var depDate)) return;
+
+            var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month };
+            if (!_alarms.Remove(key)) _alarms.Add(key);
+            UpdateCheckboxVisual(destId, isRow2, _alarms.Contains(key));
+        }
+
+        private bool TryEpochToDate(double epoch, out DateTime date)
+        {
+            date = default;
+            var tc = MonoBehaviourSingleton<TimeController>.Instance;
+            var ge = GravityEngine.Instance();
+            if (tc == null || ge == null) return false;
+            double spp = GravityScaler.GetGameSecondPerPhysicsSecond();
+            if (spp <= 0) spp = 1;
+            date = tc.CurrentTime + TimeSpan.FromSeconds((epoch - ge.GetPhysicalTimeDouble()) * spp);
+            return true;
+        }
+
+        private void UpdateCheckboxVisual(string destId, bool isRow2, bool armed)
+        {
+            if (!rowCheckboxBtns.TryGetValue(destId, out var btns)) return;
+            var btn = btns[isRow2 ? 1 : 0];
+            if (btn == null) return;
+            btn.gameObject.SetActive(true);
+            var img = btn.GetComponent<Image>();
+            var tmp = btn.GetComponentInChildren<TextMeshProUGUI>();
+            if (img != null) img.color = armed ? CbCheckedBg : CbUncheckedBg;
+            if (tmp != null) { tmp.text = armed ? "✓" : "□"; tmp.color = armed ? CbCheckedFg : CbUncheckedFg; }
+        }
+
+        private void UpdateAllCheckboxVisuals()
+        {
+            var ge = GravityEngine.Instance();
+            if (ge == null) return;
+            foreach (var destId in destIds)
+            {
+                if (!rowCheckboxBtns.TryGetValue(destId, out var btns)) continue;
+                cache.TryGetValue(destId, out var entry);
+                for (int i = 0; i < 2; i++)
+                {
+                    var btn = btns[i];
+                    if (btn == null) continue;
+                    var window = i == 0 ? entry.opt1 : entry.opt2;
+                    if (window == null) { btn.gameObject.SetActive(false); continue; }
+                    if (!TryEpochToDate(window.Value.DepartureEpoch, out var depDate)) { btn.gameObject.SetActive(false); continue; }
+                    btn.gameObject.SetActive(true);
+                    var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month };
+                    bool armed = _alarms.Contains(key);
+                    var img = btn.GetComponent<Image>();
+                    var tmp = btn.GetComponentInChildren<TextMeshProUGUI>();
+                    if (img != null) img.color = armed ? CbCheckedBg : CbUncheckedBg;
+                    if (tmp != null) { tmp.text = armed ? "✓" : "□"; tmp.color = armed ? CbCheckedFg : CbUncheckedFg; }
+                }
+            }
+        }
+
+        // ── Sidecar persistence ───────────────────────────────────────────────────
+
+        private void TryApplySidecarData()
+        {
+            if (_sidecarApplied || ephem == null) return;
+            _sidecarApplied = true;
+            ApplySidecarData();
+        }
+
+        private void ApplySidecarData()
+        {
+            if (_sidecarData == null)
+            {
+                // First load for this save — default to Earth → Mars
+                int earthIdx = originIds.FindIndex(id =>
+                    string.Equals(ephem.GetDisplayName(id), "Earth", StringComparison.OrdinalIgnoreCase));
+                if (earthIdx >= 0) { originIndex = earthIdx; UpdateOriginLabel(); }
+                var marsId = ephem.AllBodyIds.FirstOrDefault(id =>
+                    string.Equals(ephem.GetDisplayName(id), "Mars", StringComparison.OrdinalIgnoreCase));
+                if (marsId != null && !destIds.Contains(marsId)) destIds.Add(marsId);
+                needsRefresh = true;
+                return;
+            }
+            if (!string.IsNullOrEmpty(_sidecarData.originId))
+            {
+                int idx = originIds.IndexOf(_sidecarData.originId);
+                if (idx >= 0) { originIndex = idx; UpdateOriginLabel(); }
+            }
+            var allIds = new HashSet<string>(ephem.AllBodyIds);
+            destIds = (_sidecarData.destIds ?? new List<string>()).Where(id => allIds.Contains(id)).ToList();
+            _alarms.Clear();
+            foreach (var a in _sidecarData.alarms ?? new List<LWAlarmSave>())
+                _alarms.Add(new AlarmKey { OriginId = a.originId, DestId = a.destId, Year = a.year, Month = a.month });
+
+            var ge2 = GravityEngine.Instance();
+            double physNow2 = ge2 != null ? ge2.GetPhysicalTimeDouble() : 0;
+            var (promoted, needsOpt2) = LWCacheHelper.PromoteWindowCache(
+                _sidecarData.windowCache, allIds, physNow2);
+            cache.Clear();
+            _needsOpt2Recalc.Clear();
+            foreach (var kv in promoted) cache[kv.Key] = kv.Value;
+            foreach (var id in needsOpt2) _needsOpt2Recalc.Add(id);
+
+            needsRefresh = true;
+        }
+
+        internal void LoadFromSidecar(string saveName)
+        {
+            _sidecarLoaded  = true;
+            _sidecarApplied = false;
+            _sidecarData    = null;
+            try
+            {
+                string path = SidecarPath(saveName);
+                if (File.Exists(path))
+                {
+                    _sidecarData = JsonUtility.FromJson<LWSaveData>(File.ReadAllText(path));
+                    Plugin.Log.LogInfo($"[LW] Loaded sidecar: {path}");
+                }
+                else Plugin.Log.LogInfo($"[LW] No sidecar for '{saveName}', using defaults");
+            }
+            catch (Exception ex) { Plugin.Log.LogWarning($"[LW] LoadFromSidecar: {ex.Message}"); }
+        }
+
+        internal void SaveToSidecar(string saveName)
+        {
+            try
+            {
+                var data = new LWSaveData
+                {
+                    originId = OriginId ?? "",
+                    destIds  = new List<string>(destIds),
+                    alarms   = _alarms.Select(a => new LWAlarmSave
+                        { originId = a.OriginId, destId = a.DestId, year = a.Year, month = a.Month }).ToList(),
+                    windowCache = cache.Select(kv => new LWDestCacheSave
+                    {
+                        destId = kv.Key,
+                        opt1 = kv.Value.opt1.HasValue ? LWSaveConvert.ToSave(kv.Value.opt1.Value) : null,
+                        fst1 = kv.Value.fst1.HasValue ? LWSaveConvert.ToSave(kv.Value.fst1.Value) : null,
+                        opt2 = kv.Value.opt2.HasValue ? LWSaveConvert.ToSave(kv.Value.opt2.Value) : null,
+                        fst2 = kv.Value.fst2.HasValue ? LWSaveConvert.ToSave(kv.Value.fst2.Value) : null,
+                    }).ToList()
+                };
+                string path = SidecarPath(saveName);
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.WriteAllText(path, JsonUtility.ToJson(data));
+                Plugin.Log.LogInfo($"[LW] Saved sidecar: {path}");
+            }
+            catch (Exception ex) { Plugin.Log.LogWarning($"[LW] SaveToSidecar: {ex.Message}"); }
+        }
+
+        private static string SidecarPath(string saveName)
+        {
+            string name = Path.GetFileName(saveName ?? "");
+            foreach (var ext in new[] { ".json.gz", ".info.gz", ".json", ".gz" })
+                if (name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+                    name = name.Substring(0, name.Length - ext.Length);
+            if (string.IsNullOrWhiteSpace(name)) name = "default";
+            return Path.Combine(
+                Path.GetDirectoryName(Plugin.Location ?? "") ?? "",
+                "saves", name + ".lw.json");
+        }
+
     }
 }

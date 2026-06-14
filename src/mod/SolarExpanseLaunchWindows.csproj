@@ -16,6 +16,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../core/SolarExpanseLaunchWindowsCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- These files now live in core -->
+    <Compile Remove="Types.cs" />
+    <Compile Remove="WindowFinder.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="BepInEx">
       <HintPath>$(SolarExpanseInstall)/BepInEx/core/BepInEx.dll</HintPath>
       <Private>false</Private>
@@ -66,6 +76,10 @@
     </Reference>
     <Reference Include="Sirenix.Serialization">
       <HintPath>$(SolarExpanseInstall)/Solar Expanse_Data/Managed/Sirenix.Serialization.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>$(SolarExpanseInstall)/Solar Expanse_Data/Managed/UnityEngine.JSONSerializeModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
