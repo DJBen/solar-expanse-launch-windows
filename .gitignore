@@ -1,7 +1,3 @@
-src/mod/bin/
-src/mod/obj/
-src/core/bin/
-src/core/obj/
-src/tests/bin/
-src/tests/obj/
+**/bin/
+**/obj/
 dist/
