@@ -3,7 +3,7 @@ using HarmonyLib;
 
 namespace SolarExpanseLaunchWindows
 {
-    [BepInPlugin("com.stockmaj.solar-expanse-launch-windows", "Solar Expanse Launch Windows", "1.1.0")]
+    [BepInPlugin("com.stockmaj.solar-expanse-launch-windows", "Solar Expanse Launch Windows", "1.2.0")]
     public class Plugin : BaseUnityPlugin
     {
         internal static BepInEx.Logging.ManualLogSource Log { get; private set; }

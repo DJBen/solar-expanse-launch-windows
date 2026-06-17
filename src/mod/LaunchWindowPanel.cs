@@ -25,6 +25,7 @@ namespace SolarExpanseLaunchWindows
         internal Button          CraftBtn;
         internal Transform       ContentParent;
         internal TMP_FontAsset   FontAsset;
+        internal TMP_FontAsset   HeaderFontAsset; // Oxanium if found, else same as FontAsset
         internal RectTransform   PanelRT;
         internal GameObject      OriginDropGO;
         internal GameObject      CraftDropGO;
@@ -39,7 +40,17 @@ namespace SolarExpanseLaunchWindows
         private double            dvToKmS;
         private List<string>      originIds = new List<string>();
         private int               originIndex;
-        private List<string>      destIds   = new List<string>();
+        private readonly Dictionary<string, List<string>> _destsByOrigin = new Dictionary<string, List<string>>();
+        private List<string> DestIds
+        {
+            get
+            {
+                var o = OriginId ?? "";
+                if (!_destsByOrigin.TryGetValue(o, out var d))
+                    _destsByOrigin[o] = d = new List<string>();
+                return d;
+            }
+        }
 
         // Craft budget
         private double _craftDvCapGameUnits  = double.MaxValue;
@@ -47,7 +58,8 @@ namespace SolarExpanseLaunchWindows
         private bool   _craftManuallySelected;
         private bool   _craftLogged;
         private string _selectedCraftName;
-        private double _craftMaxDvKmS  = double.MaxValue; // zero-cargo theoretical max dv
+        private double _craftMaxDvKmS    = double.MaxValue;
+        private double _craftSolarRangeAU = 0.0; // >0 means solar sail; 0 means no range limit
         private double _craftMaxCargo  = 0.0;
         private double _craftExhaustV  = 0.0;
         private double _craftDryMass   = 0.0;
@@ -63,6 +75,8 @@ namespace SolarExpanseLaunchWindows
             = new Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>();
         // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
         // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
+        private readonly Dictionary<string, TextMeshProUGUI>   rowNameTMPs = new Dictionary<string, TextMeshProUGUI>();
+        private readonly Dictionary<string, Image>             rowIconImgs = new Dictionary<string, Image>();
         private readonly Dictionary<string, TextMeshProUGUI[]> rowTMPs
             = new Dictionary<string, TextMeshProUGUI[]>();
 
@@ -82,15 +96,21 @@ namespace SolarExpanseLaunchWindows
         private readonly HashSet<AlarmKey> _alarms     = new HashSet<AlarmKey>();
         private readonly HashSet<AlarmKey> _firedAlarms = new HashSet<AlarmKey>();
         private readonly HashSet<string>  _needsOpt2Recalc = new HashSet<string>();
+        private readonly HashSet<string>  _needsFstRecalc  = new HashSet<string>();
         internal IGameClock _clock = new GameClock();
 
-        // Per-row checkbox buttons: [0]=row1 (opt1), [1]=row2 (opt2)
+        // Per-row checkbox buttons: [0]=opt1, [1]=opt2, [2]=fst1, [3]=fst2
         private readonly Dictionary<string, Button[]> rowCheckboxBtns = new Dictionary<string, Button[]>();
 
+        // Per-origin window cache — preserved across origin switches so no recalc on switch-back.
+        private readonly Dictionary<string, Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>> _cacheByOrigin
+            = new Dictionary<string, Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>>();
+
         // Sidecar load/apply state
-        private bool      _sidecarLoaded;
-        private bool      _sidecarApplied;
+        private bool       _sidecarLoaded;
+        private bool       _sidecarApplied;
         private LWSaveData _sidecarData;
+        private float      _ephemReadyTime = -1f;
 
         private string OriginId => originIds.Count > 0 ? originIds[originIndex % originIds.Count] : null;
 
@@ -172,6 +192,7 @@ namespace SolarExpanseLaunchWindows
         private void ShowCraftDropdown()
         {
             if (CraftDropGO == null) return;
+            _craftLogged = false;
             PopulateCraftDropdown();
             PositionDropdownBelow(CraftDropGO, CraftBtn?.GetComponent<RectTransform>(), below: true);
             CraftDropGO.SetActive(true);
@@ -189,10 +210,10 @@ namespace SolarExpanseLaunchWindows
             var content = GetDropContent(CraftDropGO);
             if (content == null) return;
             for (int i = content.childCount - 1; i >= 0; i--)
-                Destroy(content.GetChild(i).gameObject);
+                UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
 
             var crafts = GetAllCraftDv();
-            foreach (var (name, maxDvKmS, maxCargo, exhaustV, dryMass, fuel) in crafts.OrderByDescending(c => c.maxDvKmS))
+            foreach (var (name, maxDvKmS, maxCargo, exhaustV, dryMass, fuel, solarRangeAU) in crafts.OrderByDescending(c => c.maxDvKmS == double.MaxValue ? double.MaxValue : c.maxDvKmS))
             {
                 var capName    = name;
                 var capMaxDv   = maxDvKmS;
@@ -200,10 +221,14 @@ namespace SolarExpanseLaunchWindows
                 var capExhV    = exhaustV;
                 var capDry     = dryMass;
                 var capFuel    = fuel;
+                var capSolar   = solarRangeAU;
                 bool isSel     = capName == _selectedCraftName;
-                AddDropdownItem(content, $"{capName}  ({capMaxDv:F0} km/s)", isSel, () => {
+                string label   = capSolar > 0
+                    ? $"{capName}  (solar, {capSolar:F1}AU)"
+                    : $"{capName}  ({capMaxDv:F0} km/s)";
+                AddDropdownItem(content, label, isSel, () => {
                     _craftManuallySelected = true;
-                    SetCraft(capName, capMaxDv, capCargo, capExhV, capDry, capFuel);
+                    SetCraft(capName, capMaxDv, capCargo, capExhV, capDry, capFuel, capSolar);
                     HideCraftDropdown();
                     ClearAllRowData();
                     needsRefresh = true;
@@ -225,7 +250,7 @@ namespace SolarExpanseLaunchWindows
             if (content == null || ephem == null) return;
 
             for (int i = content.childCount - 1; i >= 0; i--)
-                Destroy(content.GetChild(i).gameObject);
+                UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
 
             var items = originIds
                 .Select(id => (id, label: ephem.GetDisplayName(id)))
@@ -238,16 +263,27 @@ namespace SolarExpanseLaunchWindows
                 var captured = id;
                 bool isCurrent = id == OriginId;
                 AddDropdownItem(content, label, isCurrent, () => {
+                    var prevOriginId = OriginId;
                     int idx = originIds.IndexOf(captured);
                     if (idx >= 0) originIndex = idx;
                     UpdateOriginLabel();
                     HideOriginDropdown();
+                    // Save old origin's cache, then restore the new origin's cache (avoids recalc on switch-back).
+                    if (prevOriginId != null)
+                        _cacheByOrigin[prevOriginId] = new Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>(cache);
                     ClearAllRowData();
-                    if (destIds.Count == 0 && ephem != null)
+                    if (_cacheByOrigin.TryGetValue(OriginId ?? "", out var saved))
+                        foreach (var kv in saved) cache[kv.Key] = kv.Value;
+                    if (DestIds.Count == 0 && ephem != null)
                     {
-                        var earthId = ephem.AllBodyIds.FirstOrDefault(id =>
-                            string.Equals(ephem.GetDisplayName(id), "Earth", StringComparison.OrdinalIgnoreCase));
-                        if (earthId != null && earthId != OriginId) destIds.Add(earthId);
+                        // Pick the first non-origin planet from a sensible fallback list.
+                        foreach (var fallback in new[] { "Earth", "Mars", "Venus", "Jupiter" })
+                        {
+                            var fid = ephem.AllBodyIds.FirstOrDefault(bid =>
+                                string.Equals(ephem.GetDisplayName(bid), fallback, StringComparison.OrdinalIgnoreCase));
+                            if (fid != null && fid != OriginId && !DestIds.Contains(fid))
+                            { DestIds.Add(fid); break; }
+                        }
                     }
                     needsRefresh = true;
                 });
@@ -267,7 +303,7 @@ namespace SolarExpanseLaunchWindows
             var content = GetDropContent(SearchDropGO);
             if (content == null) return;
             for (int i = content.childCount - 1; i >= 0; i--)
-                Destroy(content.GetChild(i).gameObject);
+                UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
 
             var matches = ephem.AllBodyIds
                 .Where(id => ephem.GetDisplayName(id).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -275,20 +311,18 @@ namespace SolarExpanseLaunchWindows
                 .Take(10)
                 .ToList();
 
-            if (matches.Count == 0) { HideSearchDropdown(); return; }
-
-            if (SearchInput != null)
-                PositionDropdownBelow(SearchDropGO, SearchInput.GetComponent<RectTransform>(), below: true);
-
+            int added = 0;
             foreach (var id in matches)
             {
                 var captured = id;
+                if (DestIds.Contains(captured) || captured == OriginId) continue;
+                added++;
                 string label = ephem.GetDisplayName(id);
-                bool already = destIds.Contains(id);
-                AddDropdownItem(content, already ? $"{label} ✓" : label, already, () => {
-                    if (!destIds.Contains(captured))
+                AddDropdownItem(content, label, false, () => {
+                    if (!DestIds.Contains(captured))
                     {
-                        destIds.Add(captured);
+                        Plugin.Log.LogInfo($"[LW] AddDest: {ephem?.GetDisplayName(captured) ?? captured}");
+                        DestIds.Add(captured);
                         needsRefresh = true;
                     }
                     // SetTextWithoutNotify avoids firing onValueChanged (which would lose focus).
@@ -299,7 +333,14 @@ namespace SolarExpanseLaunchWindows
                 });
             }
 
-            SearchDropGO.SetActive(true);
+            if (added == 0) { HideSearchDropdown(); return; }
+            // Only reposition and re-show when first appearing; avoids forced layout rebuild each keystroke.
+            if (!SearchDropGO.activeSelf)
+            {
+                if (SearchInput != null)
+                    PositionDropdownBelow(SearchDropGO, SearchInput.GetComponent<RectTransform>(), below: true);
+                SearchDropGO.SetActive(true);
+            }
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
@@ -421,16 +462,16 @@ namespace SolarExpanseLaunchWindows
         {
             if (_sortCol == SortCol.None || cache.Count == 0) return;
 
-            destIds.Sort((a, b) => {
+            DestIds.Sort((a, b) => {
                 double ka = SortKey(a), kb = SortKey(b);
                 int c = ka.CompareTo(kb);
                 return _sortDir == SortDir.Asc ? c : -c;
             });
 
             if (ContentParent != null)
-                for (int i = 0; i < destIds.Count; i++)
+                for (int i = 0; i < DestIds.Count; i++)
                 {
-                    var t = ContentParent.Find("Row_" + destIds[i]);
+                    var t = ContentParent.Find("Row_" + DestIds[i]);
                     if (t != null) t.SetSiblingIndex(i);
                 }
 
@@ -459,19 +500,26 @@ namespace SolarExpanseLaunchWindows
             if (_craftManuallySelected) return;
             var crafts = GetAllCraftDv();
             if (crafts.Length == 0) return;
-            var best = crafts.OrderByDescending(c => c.maxDvKmS).First();
-            SetCraft(best.name, best.maxDvKmS, best.maxCargo, best.exhaustV, best.dryMass, best.fuel);
+            var best = crafts[0];
+            for (int i = 1; i < crafts.Length; i++)
+                if (crafts[i].maxDvKmS > best.maxDvKmS) best = crafts[i];
+            SetCraft(best.name, best.maxDvKmS, best.maxCargo, best.exhaustV, best.dryMass, best.fuel, best.solarRangeAU);
         }
 
-        private void SetCraft(string name, double maxDvKmS, double maxCargo, double exhaustV, double dryMass, double fuel)
+        private void SetCraft(string name, double maxDvKmS, double maxCargo, double exhaustV, double dryMass, double fuel, double solarRangeAU = 0.0)
         {
+            Plugin.Log.LogInfo($"[LW] SetCraft '{name}': exhaustV={exhaustV:F3} mass={dryMass:F1} fuel={fuel:F1} maxDv={maxDvKmS:F3}km/s solarRange={solarRangeAU:F2}AU");
             _selectedCraftName   = name;
             _craftMaxDvKmS       = maxDvKmS;
+            _craftSolarRangeAU   = solarRangeAU;
             _craftMaxCargo       = maxCargo;
             _craftExhaustV       = exhaustV;
             _craftDryMass        = dryMass;
             _craftFuel           = fuel;
-            _craftDvCapGameUnits = dvToKmS > 0 ? maxDvKmS / dvToKmS : double.MaxValue;
+            // Solar sails: Lambert-based Fastest is meaningless (continuous thrust, not impulsive).
+            // dvCap=0 ensures FindWindows never returns a Fastest window for solar sails.
+            _craftDvCapGameUnits = (solarRangeAU > 0) ? 0.0
+                : (dvToKmS > 0 ? maxDvKmS / dvToKmS : double.MaxValue);
             if (CraftBtn == null) return;
             var lbl = CraftBtn.GetComponentInChildren<TextMeshProUGUI>();
             if (lbl != null) lbl.text = $"Craft: {name} ▼";
@@ -504,63 +552,104 @@ namespace SolarExpanseLaunchWindows
             catch (Exception ex) { Plugin.Log.LogWarning($"[LW] GetOmAndPlayer: {ex.Message}"); return (null, null); }
         }
 
-        private (string name, double maxDvKmS, double maxCargo, double exhaustV, double dryMass, double fuel)[] GetAllCraftDv()
+        private (string name, double maxDvKmS, double maxCargo, double exhaustV, double dryMass, double fuel, double solarRangeAU)[] GetAllCraftDv()
         {
             try
             {
-                var (allInfos, player) = GetOmAndPlayer();
-                if (allInfos == null) return Array.Empty<(string, double, double, double, double, double)>();
-
                 const BindingFlags bf = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-                var seen   = new HashSet<int>();
-                var result = new List<(string, double, double, double, double, double)>();
 
-                // Match by name+param-count to avoid exact-type mismatch with Company subclasses.
-                System.Reflection.MethodInfo getOidM = null;
-                int infoCount = 0;
-                foreach (var objectInfo in allInfos)
+                var omResult = GetOmAndPlayer();
+                var player = omResult.player;
+                if (player == null) return Array.Empty<(string, double, double, double, double, double, double)>();
+
+                var asm = AppDomain.CurrentDomain.GetAssemblies()
+                    .FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
+                if (asm == null) return Array.Empty<(string, double, double, double, double, double, double)>();
+
+                // ShipManager.ListAllSpaceShip covers all owned spacecraft regardless of location.
+                var smType = asm.GetType("ShipManager");
+                if (smType == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager not found"); return Array.Empty<(string, double, double, double, double, double, double)>(); }
+                var sm = UnityEngine.Object.FindObjectOfType(smType);
+                if (sm == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager instance not found"); return Array.Empty<(string, double, double, double, double, double, double)>(); }
+
+                var listAll = smType.GetProperty("ListAllSpaceShip", bf)?.GetValue(sm) as IEnumerable;
+                if (listAll == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ListAllSpaceShip not found"); return Array.Empty<(string, double, double, double, double, double, double)>(); }
+
+                var seen     = new HashSet<int>();
+                var result   = new List<(string, double, double, double, double, double, double)>();
+                System.Reflection.FieldInfo fieldSCT = null;
+
+                foreach (var sc in listAll)
                 {
-                    if (getOidM == null)
-                        getOidM = objectInfo.GetType().GetMethods(bf)
-                            .FirstOrDefault(m => m.Name == "GetObjectInfoData" && m.GetParameters().Length == 1);
+                    if (fieldSCT == null)
+                        fieldSCT = sc.GetType().GetField("spacecraftType", bf);
+                    var scType = fieldSCT?.GetValue(sc);
+                    if (scType == null) continue;
+                    int hash = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(scType);
+                    if (!seen.Add(hash)) continue;
 
-                    var oid = getOidM?.Invoke(objectInfo, new[] { player });
-                    if (oid == null) { infoCount++; continue; }
-                    infoCount++;
-                    var listSC = oid.GetType().GetProperty("ListSpaceCrafts", bf)?.GetValue(oid) as IEnumerable;
-                    if (listSC == null) continue;
+                    var scTypeType = scType.GetType();
+                    bool isSolar = Convert.ToBoolean(scTypeType.GetProperty("SolarSC", bf)?.GetValue(scType));
 
-                    foreach (var sc in listSC)
+                    double exhaustV, emptyMass, fuel, maxCargo;
+                    if (isSolar)
                     {
-                        var scType = sc.GetType().GetField("spacecraftType", bf)?.GetValue(sc);
-                        if (scType == null) continue;
-                        int hash = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(scType);
-                        if (!seen.Add(hash)) continue;
-
-                        var scTypeType = scType.GetType();
-                        // Use company-bonus-adjusted values — same path as PlanMissionWindow.Update.
+                        exhaustV  = 0; emptyMass = 0; fuel = 0;
+                        maxCargo  = 0;
+                        try { maxCargo = Convert.ToDouble(scTypeType.GetMethods(bf).FirstOrDefault(m => m.Name == "GetCargoCapacity" && m.GetParameters().Length == 1)?.Invoke(scType, new[] { player })); } catch { }
+                    }
+                    else
+                    {
                         var mExhaustV = scTypeType.GetMethods(bf).FirstOrDefault(m => m.Name == "GetExhaustV"      && m.GetParameters().Length == 1);
                         var mMass     = scTypeType.GetMethods(bf).FirstOrDefault(m => m.Name == "GetMass"          && m.GetParameters().Length == 1);
                         var mFuel     = scTypeType.GetMethods(bf).FirstOrDefault(m => m.Name == "GetFuelCapacity"  && m.GetParameters().Length == 1);
                         var mCargo    = scTypeType.GetMethods(bf).FirstOrDefault(m => m.Name == "GetCargoCapacity" && m.GetParameters().Length == 1);
-                        double exhaustV  = mExhaustV != null ? Convert.ToDouble(mExhaustV.Invoke(scType, new[] { player })) : Convert.ToDouble(scTypeType.GetProperty("ExhaustV",     bf)?.GetValue(scType));
-                        double emptyMass = mMass     != null ? Convert.ToDouble(mMass    .Invoke(scType, new[] { player })) : Convert.ToDouble(scTypeType.GetProperty("Mass",         bf)?.GetValue(scType));
-                        double fuel      = mFuel     != null ? Convert.ToDouble(mFuel    .Invoke(scType, new[] { player })) : Convert.ToDouble(scTypeType.GetProperty("FuelCapacity", bf)?.GetValue(scType));
-                        double maxCargo  = mCargo    != null ? Convert.ToDouble(mCargo   .Invoke(scType, new[] { player })) : 0.0;
-                        // exhaustV is km/s; zero-cargo max dv is the physical ceiling.
-                        double maxDvKmS = (emptyMass > 0 && fuel > 0)
+                        exhaustV  = mExhaustV != null ? Convert.ToDouble(mExhaustV.Invoke(scType, new[] { player })) : Convert.ToDouble(scTypeType.GetProperty("ExhaustV",     bf)?.GetValue(scType));
+                        emptyMass = mMass     != null ? Convert.ToDouble(mMass    .Invoke(scType, new[] { player })) : Convert.ToDouble(scTypeType.GetProperty("Mass",         bf)?.GetValue(scType));
+                        fuel      = mFuel     != null ? Convert.ToDouble(mFuel    .Invoke(scType, new[] { player })) : Convert.ToDouble(scTypeType.GetProperty("FuelCapacity", bf)?.GetValue(scType));
+                        maxCargo  = mCargo    != null ? Convert.ToDouble(mCargo   .Invoke(scType, new[] { player })) : 0.0;
+                    }
+
+                    double maxDvKmS;
+                    if (isSolar)
+                    {
+                        // Solar sails: use AvailableDeltaV (game-defined effective limit)
+                        double availDv = 0;
+                        try { availDv = Convert.ToDouble(scTypeType.GetProperty("AvailableDeltaV", bf)?.GetValue(scType)); } catch { }
+                        maxDvKmS = availDv > 0 ? availDv : 100.0;
+                    }
+                    else
+                    {
+                        maxDvKmS = (emptyMass > 0 && fuel > 0)
                             ? exhaustV * Math.Log((emptyMass + fuel) / emptyMass)
                             : exhaustV;
-                        string scName;
-                        try   { scName = scTypeType.GetProperty("Name", bf)?.GetValue(scType) as string ?? "?"; }
-                        catch { scName = scTypeType.GetProperty("ID",   bf)?.GetValue(scType) as string ?? "?"; }
-                        if (!_craftLogged) Plugin.Log.LogInfo($"[LW] craft '{scName}': exhaustV={exhaustV:F3} mass={emptyMass:F1} fuel={fuel:F1} maxCargo={maxCargo:F1} maxDv={maxDvKmS:F1}km/s");
-                        result.Add((scName, maxDvKmS, maxCargo, exhaustV, emptyMass, fuel));
                     }
+
+                    double solarRangeAU = 0.0;
+                    if (isSolar)
+                    {
+                        try
+                        {
+                            var mRange = scTypeType.GetMethods(bf).FirstOrDefault(m => m.Name == "GetSolarRange" && m.GetParameters().Length == 1);
+                            if (mRange != null) solarRangeAU = Convert.ToDouble(mRange.Invoke(scType, new[] { player }));
+                        }
+                        catch { }
+                    }
+
+                    string scName;
+                    try   { scName = scTypeType.GetProperty("Name", bf)?.GetValue(scType) as string ?? "?"; }
+                    catch { scName = scTypeType.GetProperty("ID",   bf)?.GetValue(scType) as string ?? "?"; }
+
+                    if (!_craftLogged)
+                    {
+                        if (isSolar) Plugin.Log.LogInfo($"[LW] craft '{scName}': solar sail, range={solarRangeAU:F2}AU maxCargo={maxCargo:F1}");
+                        else         Plugin.Log.LogInfo($"[LW] craft '{scName}': exhaustV={exhaustV:F3} mass={emptyMass:F1} fuel={fuel:F1} maxCargo={maxCargo:F1} maxDv={maxDvKmS:F1}km/s");
+                    }
+                    result.Add((scName, maxDvKmS, maxCargo, exhaustV, emptyMass, fuel, solarRangeAU));
                 }
 
                 if (result.Count == 0)
-                    Plugin.Log.LogWarning($"[LW] GetAllCraftDv: scanned {infoCount} objectInfos, found 0 craft types");
+                    Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager.ListAllSpaceShip found 0 craft");
                 else
                     _craftLogged = true;
                 return result.ToArray();
@@ -568,7 +657,7 @@ namespace SolarExpanseLaunchWindows
             catch (Exception ex)
             {
                 Plugin.Log.LogWarning($"[LW] GetAllCraftDv: {ex.Message}");
-                return Array.Empty<(string, double, double, double, double, double)>();
+                return Array.Empty<(string, double, double, double, double, double, double)>();
             }
         }
 
@@ -588,10 +677,10 @@ namespace SolarExpanseLaunchWindows
             int added = 0;
             foreach (var bodyId in ephem.AllBodyIds)
             {
-                if (bodyId == OriginId || destIds.Contains(bodyId)) continue;
+                if (bodyId == OriginId || DestIds.Contains(bodyId)) continue;
                 if (presenceIds.Contains(bodyId))
                 {
-                    destIds.Add(bodyId);
+                    DestIds.Add(bodyId);
                     added++;
                 }
             }
@@ -614,6 +703,13 @@ namespace SolarExpanseLaunchWindows
                 System.Reflection.MethodInfo getOidM = null;
                 foreach (var objectInfo in allInfos)
                 {
+                    // Get NBody early so facility loop can use body name for [ORBIT] check.
+                    var nb = objectInfo.GetType().GetField("nBody", bf)?.GetValue(objectInfo) as NBody;
+                    if (nb == null) continue;
+                    var nbInfo = nb.GetObjectInfo();
+                    if (nbInfo != null && nbInfo.objectTypes == EObjectTypes.Spacecraft) continue;
+                    bool isOrbitBody = (nb.name ?? "").IndexOf("[ORBIT]", StringComparison.OrdinalIgnoreCase) >= 0;
+
                     if (getOidM == null)
                         getOidM = objectInfo.GetType().GetMethods(bf)
                             .FirstOrDefault(m => m.Name == "GetObjectInfoData" && m.GetParameters().Length == 1);
@@ -621,25 +717,40 @@ namespace SolarExpanseLaunchWindows
                     if (oid == null) continue;
                     var facList = oid.GetType().GetProperty("ListFacility", bf)?.GetValue(oid) as ICollection;
                     if (facList == null || facList.Count == 0) continue;
-                    // ListFacility is non-empty for any tracked body; only count as "base" if
-                    // at least one facility has actually been built (Quantity > 0).
+                    // Only count as "base" if at least one non-probe facility has Quantity > 0.
                     bool hasBuilt = false;
                     foreach (var fac in (IEnumerable)facList)
                     {
                         var qty = fac.GetType().GetProperty("Quantity", bf)?.GetValue(fac)
                                ?? (object)fac.GetType().GetField("quantity", bf)?.GetValue(fac);
-                        if (qty != null && Convert.ToInt64(qty) > 0) { hasBuilt = true; break; }
+                        if (qty == null || Convert.ToInt64(qty) <= 0) continue;
+                        // ProbeSpaceModule is the exact runtime type for exploration probes/rovers.
+                        if (fac.GetType().Name == "ProbeSpaceModule") continue;
+                        hasBuilt = true;
+                        break;
                     }
                     if (!hasBuilt) continue;
-                    // ObjectInfo.nBody (line 97 of ObjectInfo.cs) is the authoritative link to the NBody
-                    // whose GetInstanceID().ToString() is the ephemeris key.
-                    var nb = objectInfo.GetType().GetField("nBody", bf)?.GetValue(objectInfo) as NBody;
-                    if (nb == null) continue;
-                    // Skip spacecraft (probes) — only celestial bodies count as bases.
-                    var nbInfo = nb.GetObjectInfo();
-                    if (nbInfo != null && nbInfo.objectTypes == EObjectTypes.Spacecraft) continue;
                     string id = nb.GetInstanceID().ToString();
-                    result.Add(id);
+                    if (ephem != null && ephem.AllBodyIds.Contains(id))
+                    {
+                        result.Add(id);
+                    }
+                    else if (nbInfo != null && ephem != null)
+                    {
+                        // Moon or Orbit body not in ephem — walk to parent planet.
+                        // (e.g. Callisto → Jupiter; an orbital station → its parent planet)
+                        var parentInfo = nbInfo.GetType().GetProperty("ParentObjectInfo", bf)?.GetValue(nbInfo);
+                        var parentNb = parentInfo?.GetType().GetField("nBody", bf)?.GetValue(parentInfo) as NBody;
+                        if (parentNb != null)
+                        {
+                            string parentId = parentNb.GetInstanceID().ToString();
+                            if (ephem.AllBodyIds.Contains(parentId)) result.Add(parentId);
+                        }
+                    }
+                    else
+                    {
+                        result.Add(id); // fallback: add as-is, AddPresenceBodies will filter
+                    }
                 }
                 return result;
             }
@@ -675,14 +786,17 @@ namespace SolarExpanseLaunchWindows
             var ge = GravityEngine.Instance();
             if (ge == null) { refreshing = false; if (CalcOverlayGO != null) CalcOverlayGO.SetActive(false); return; }
             double physNow    = ge.GetPhysicalTimeDouble();
-            double dvCap      = _craftDvCapGameUnits;
-            var destSnap      = new System.Collections.Generic.List<string>(destIds);
+            double dvCap      = _craftDvCapGameUnits; // Fastest capped at selected craft's dv
+            var destSnap      = new System.Collections.Generic.List<string>(DestIds);
             var originId      = OriginId;
 
-            // Full recalc (cache absent or opt1 stale) vs. partial (promoted: opt1 valid, opt2 missing).
+            // Full recalc (cache absent or opt1 stale) vs. partial (promoted: opt1 valid, opt2 missing)
+            // vs. fst-only partial (opt1 valid, fst1 stale).
             var needsOpt2Snap = new HashSet<string>(_needsOpt2Recalc);
-            var toCalcFull    = new List<string>();
-            var toCalcPartial = new List<(string dId, LaunchWindow opt1, LaunchWindow? fst1)>();
+            var needsFstSnap  = new HashSet<string>(_needsFstRecalc);
+            var toCalcFull         = new List<string>();
+            var toCalcPartial      = new List<(string dId, LaunchWindow opt1, LaunchWindow? fst1)>();
+            var toCalcFstPartial   = new List<(string dId, LaunchWindow opt1, LaunchWindow? opt2)>();
             foreach (var dId in destSnap)
             {
                 if (dId == originId) continue;
@@ -690,9 +804,11 @@ namespace SolarExpanseLaunchWindows
                     toCalcFull.Add(dId);
                 else if (needsOpt2Snap.Contains(dId) && cache.TryGetValue(dId, out var ce) && ce.opt1.HasValue)
                     toCalcPartial.Add((dId, ce.opt1.Value, ce.fst1));
+                else if (needsFstSnap.Contains(dId) && cache.TryGetValue(dId, out var ce2) && ce2.opt1.HasValue)
+                    toCalcFstPartial.Add((dId, ce2.opt1.Value, ce2.opt2));
             }
 
-            if (toCalcFull.Count == 0 && toCalcPartial.Count == 0)
+            if (toCalcFull.Count == 0 && toCalcPartial.Count == 0 && toCalcFstPartial.Count == 0)
             {
                 // Everything is cached — rebuild UI immediately without a background thread.
                 refreshing = false;
@@ -777,6 +893,35 @@ namespace SolarExpanseLaunchWindows
                     _ => { }
                 );
 
+                // Fst-only partial recalcs: opt1/opt2 valid but fst1 stale — find fresh fst windows.
+                Parallel.ForEach<(string dId, LaunchWindow opt1, LaunchWindow? opt2), WindowFinder>(
+                    toCalcFstPartial,
+                    () => new WindowFinder(new GameLambertSolver(), ephemSnap, dvToKmSSnap),
+                    (item, loopState, localFinder) =>
+                    {
+                        try
+                        {
+                            double syn = localFinder.GetSynodic(originId, item.dId);
+                            var r1 = localFinder.FindWindows(originId, item.dId, physNow, dvCap);
+                            LaunchWindow? f1 = r1.fastest;
+                            LaunchWindow? f2 = null;
+                            if (syn > 0)
+                            {
+                                var r2 = localFinder.FindWindows(originId, item.dId, physNow + syn, dvCap);
+                                f2 = r2.fastest;
+                            }
+                            lock (resultsLock) { results[item.dId] = (item.opt1, f1, item.opt2, f2); }
+                        }
+                        catch (Exception ex)
+                        {
+                            Plugin.Log.LogError($"[LW] FindWindows fst {item.dId}: {ex.Message}");
+                            lock (resultsLock) { results[item.dId] = (item.opt1, null, item.opt2, null); }
+                        }
+                        return localFinder;
+                    },
+                    localFinder => { }
+                );
+
                 _pendingCache = results;
                 _calcDone = true;   // volatile write: flush _pendingCache before signalling
             });
@@ -793,6 +938,7 @@ namespace SolarExpanseLaunchWindows
                 foreach (var kv in _pendingCache) cache[kv.Key] = kv.Value;
                 _pendingCache = null;
                 _needsOpt2Recalc.Clear();
+                _needsFstRecalc.Clear();
                 RebuildRows();
                 ApplySort();
                 UpdateAllCheckboxVisuals();
@@ -816,14 +962,14 @@ namespace SolarExpanseLaunchWindows
             if (ContentParent == null) return;
             var ge = GravityEngine.Instance();
 
-            foreach (var dId in destIds)
+            foreach (var dId in DestIds)
             {
                 if (dId == OriginId) continue;
                 if (!rowTMPs.ContainsKey(dId))
                     CreateRow(dId);
             }
 
-            foreach (var dId in rowTMPs.Keys.Where(k => !destIds.Contains(k) || k == OriginId).ToList())
+            foreach (var dId in rowTMPs.Keys.Where(k => !DestIds.Contains(k) || k == OriginId).ToList())
             {
                 rowTMPs.Remove(dId);
                 rowCheckboxBtns.Remove(dId);
@@ -831,10 +977,23 @@ namespace SolarExpanseLaunchWindows
                 if (t != null) Destroy(t.gameObject);
             }
 
-            foreach (var dId in destIds)
+            double physNow = ge != null ? ge.GetPhysicalTimeDouble() : 0;
+
+            foreach (var dId in DestIds)
             {
                 if (dId == OriginId || !rowTMPs.ContainsKey(dId)) continue;
                 var tmps = rowTMPs[dId];
+
+                // Out-of-range indicator for solar sails.
+                bool outOfRange = false;
+                if (_craftSolarRangeAU > 0 && ephem != null && ge != null)
+                {
+                    double dist = ephem.GetState(dId, physNow).Position.Magnitude;
+                    outOfRange = dist > _craftSolarRangeAU;
+                }
+                if (rowNameTMPs.TryGetValue(dId, out var nameTMP))
+                    nameTMP.color = outOfRange ? new Color(0.45f, 0.45f, 0.45f) : Color.white;
+
                 if (cache.TryGetValue(dId, out var entry))
                 {
                     // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
@@ -884,24 +1043,79 @@ namespace SolarExpanseLaunchWindows
 
             string displayName = ephem?.GetDisplayName(dId) ?? dId;
 
-            // Name cell (105px): name label (flex) + × button (14px)
+            // Try to get the body's icon and ObjectInfo for click-to-navigate.
+            Sprite bodyIcon = null;
+            object bodyOI   = null;
+            var gameEphem = ephem as GameBodyEphemeris;
+            if (gameEphem != null)
+            {
+                var nb = gameEphem.GetNBodyForId(dId);
+                if (nb != null)
+                {
+                    bodyOI = nb.GetObjectInfo();
+                    if (bodyOI != null)
+                    {
+                        const BindingFlags bfi = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                        bodyIcon = bodyOI.GetType().GetProperty("ImagePlanetUI", bfi)?.GetValue(bodyOI) as Sprite;
+                    }
+                }
+            }
+
+            // Name cell (105px): icon (12px) + name label/btn (flex) + × button (14px)
             var nameCell = new GameObject("NameCell", typeof(RectTransform));
             nameCell.transform.SetParent(inner.transform, false);
             nameCell.AddComponent<LayoutElement>().preferredWidth = 105f;
             var nHlg = nameCell.AddComponent<HorizontalLayoutGroup>();
             nHlg.childControlHeight = true; nHlg.childControlWidth = true;
             nHlg.childForceExpandHeight = true; nHlg.childForceExpandWidth = false;
-            nHlg.spacing = 0f;
+            nHlg.spacing = 1f;
 
-            var nameGO = new GameObject("Name", typeof(RectTransform));
+            // Icon slot (12px)
+            var iconGO  = new GameObject("Icon", typeof(RectTransform));
+            iconGO.transform.SetParent(nameCell.transform, false);
+            iconGO.AddComponent<LayoutElement>().preferredWidth = 12f;
+            var iconImg = iconGO.AddComponent<Image>();
+            if (bodyIcon != null) { iconImg.sprite = bodyIcon; iconImg.preserveAspect = true; }
+            else                  { iconImg.color = Color.clear; }
+            iconImg.raycastTarget = false;
+            rowIconImgs[dId] = iconImg;
+
+            // Name button (flex) — click focuses the body in the game view
+            var nameGO  = new GameObject("Name", typeof(RectTransform));
             nameGO.transform.SetParent(nameCell.transform, false);
             nameGO.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            var nameTMP = nameGO.AddComponent<TextMeshProUGUI>();
+            var nameImg = nameGO.AddComponent<Image>(); nameImg.color = Color.clear; nameImg.raycastTarget = true;
+            var nameBtn = nameGO.AddComponent<Button>(); nameBtn.targetGraphic = nameImg;
+            var nameC   = nameBtn.colors; nameC.highlightedColor = new Color(1f, 1f, 1f, 0.08f); nameBtn.colors = nameC;
+            nameBtn.navigation = new Navigation { mode = Navigation.Mode.None };
+            var capOI   = bodyOI;
+            if (capOI != null)
+            {
+                nameBtn.onClick.AddListener(() =>
+                {
+                    const BindingFlags bfo = BindingFlags.Instance | BindingFlags.Public;
+                    var m = capOI.GetType().GetMethods(bfo)
+                        .FirstOrDefault(mm => mm.Name == "MyOnMouseUpAsButton2");
+                    if (m != null)
+                    {
+                        var ps   = m.GetParameters();
+                        var args = new object[ps.Length];
+                        for (int pi = 0; pi < ps.Length; pi++) args[pi] = ps[pi].DefaultValue;
+                        m.Invoke(capOI, args);
+                    }
+                });
+            }
+            var nameLblGO = new GameObject("L", typeof(RectTransform));
+            nameLblGO.transform.SetParent(nameGO.transform, false);
+            var nameLblRT = nameLblGO.GetComponent<RectTransform>();
+            nameLblRT.anchorMin = Vector2.zero; nameLblRT.anchorMax = Vector2.one; nameLblRT.sizeDelta = Vector2.zero;
+            var nameTMP = nameLblGO.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) nameTMP.font = FontAsset;
             nameTMP.text = displayName; nameTMP.fontSize = 10f;
             nameTMP.alignment = TextAlignmentOptions.Left; nameTMP.color = Color.white;
             nameTMP.enableWordWrapping = false; nameTMP.overflowMode = TextOverflowModes.Ellipsis;
             nameTMP.raycastTarget = false;
+            rowNameTMPs[dId] = nameTMP;
 
             var xGO  = new GameObject("X", typeof(RectTransform));
             xGO.transform.SetParent(nameCell.transform, false);
@@ -948,7 +1162,25 @@ namespace SolarExpanseLaunchWindows
             var sep1 = new GameObject("Sep", typeof(RectTransform));
             sep1.transform.SetParent(inner.transform, false);
             sep1.AddComponent<LayoutElement>().preferredWidth = 8f;
-            var fD  = MakeDataGroup(inner.transform, out var fDv, out var fTvl, isOptimal: false);
+            // Fastest group — inline with checkbox, matching optimal group structure
+            var fGroup = new GameObject("FstCol", typeof(RectTransform));
+            fGroup.transform.SetParent(inner.transform, false);
+            fGroup.AddComponent<LayoutElement>().preferredWidth = 255f;
+            var fHlg = fGroup.AddComponent<HorizontalLayoutGroup>();
+            fHlg.childControlHeight = true; fHlg.childControlWidth = true;
+            fHlg.childForceExpandHeight = true; fHlg.childForceExpandWidth = false;
+            fHlg.spacing = 0f;
+            var fDCell = new GameObject("FDepC", typeof(RectTransform));
+            fDCell.transform.SetParent(fGroup.transform, false);
+            fDCell.AddComponent<LayoutElement>().preferredWidth = FST_DEP_W;
+            var fDHlg = fDCell.AddComponent<HorizontalLayoutGroup>();
+            fDHlg.childControlHeight = true; fDHlg.childControlWidth = true;
+            fDHlg.childForceExpandHeight = true; fDHlg.childForceExpandWidth = false;
+            fDHlg.spacing = 0f;
+            var fstCb1 = MakeCheckboxButton(fDCell.transform);
+            var fD     = MakeColLabel(fDCell.transform, "—", 10f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
+            var fDv    = MakeColLabel(fGroup.transform, "—", 10f, TextAlignmentOptions.Left, FST_DV_W);
+            var fTvl   = MakeColLabel(fGroup.transform, "—", 10f, TextAlignmentOptions.Left, 0f, flex: true);
 
             // ── Next-window row (dimmed, 15px) ───────────────────────────────────────
             var row2 = new GameObject("R2", typeof(RectTransform));
@@ -986,8 +1218,16 @@ namespace SolarExpanseLaunchWindows
             var sep2 = new GameObject("Sep2", typeof(RectTransform));
             sep2.transform.SetParent(inner2.transform, false);
             sep2.AddComponent<LayoutElement>().preferredWidth = 8f;
-            var nfD  = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, FST_DEP_W, dimC);
-            var nfDv = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
+            var nfDCell = new GameObject("FDepC2", typeof(RectTransform));
+            nfDCell.transform.SetParent(inner2.transform, false);
+            nfDCell.AddComponent<LayoutElement>().preferredWidth = FST_DEP_W;
+            var nfDHlg = nfDCell.AddComponent<HorizontalLayoutGroup>();
+            nfDHlg.childControlHeight = true; nfDHlg.childControlWidth = true;
+            nfDHlg.childForceExpandHeight = true; nfDHlg.childForceExpandWidth = false;
+            nfDHlg.spacing = 0f;
+            var fstCb2 = MakeCheckboxButton(nfDCell.transform, forRow2: true);
+            var nfD   = MakeColLabel(nfDCell.transform, "—", 9f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
+            var nfDv  = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
             var nfTvl = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
 
             // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
@@ -995,9 +1235,11 @@ namespace SolarExpanseLaunchWindows
             rowTMPs[dId] = new[] { oD, oDv, oTvl, fD, fDv, fTvl, noD, noDv, noTvl, nfD, nfDv, nfTvl };
 
             var capDest = dId;
-            cb1.onClick.AddListener(() => ToggleAlarmForRow(capDest, isRow2: false));
-            cb2.onClick.AddListener(() => ToggleAlarmForRow(capDest, isRow2: true));
-            rowCheckboxBtns[dId] = new[] { cb1, cb2 };
+            cb1.onClick.AddListener(()    => ToggleAlarmForRow(capDest, false, false));
+            cb2.onClick.AddListener(()    => ToggleAlarmForRow(capDest, true,  false));
+            fstCb1.onClick.AddListener(() => ToggleAlarmForRow(capDest, false, true));
+            fstCb2.onClick.AddListener(() => ToggleAlarmForRow(capDest, true,  true));
+            rowCheckboxBtns[dId] = new[] { cb1, cb2, fstCb1, fstCb2 };
         }
 
         private TextMeshProUGUI MakeDataGroup(Transform parent,
@@ -1021,12 +1263,16 @@ namespace SolarExpanseLaunchWindows
 
         private void RemoveDest(string dId)
         {
-            destIds.Remove(dId);
+            string name = ephem?.GetDisplayName(dId) ?? dId;
+            DestIds.Remove(dId);
             cache.Remove(dId);
             rowTMPs.Remove(dId);
+            rowNameTMPs.Remove(dId);
+            rowIconImgs.Remove(dId);
             rowCheckboxBtns.Remove(dId);
             _alarms.RemoveWhere(k => k.DestId == dId);
             var t = ContentParent?.Find("Row_" + dId);
+            Plugin.Log.LogInfo($"[LW] RemoveDest: {name} rowFound={t != null}");
             if (t != null) Destroy(t.gameObject);
         }
 
@@ -1034,9 +1280,14 @@ namespace SolarExpanseLaunchWindows
                                               TextAlignmentOptions align, float width,
                                               Color? color = null, bool flex = false)
         {
+            // Pure container: only LayoutElement on the GO so nothing competes with preferredWidth.
             var go  = new GameObject("C", typeof(RectTransform));
             go.transform.SetParent(parent, false);
-            var tmp = go.AddComponent<TextMeshProUGUI>();
+            var lbl = new GameObject("L", typeof(RectTransform));
+            lbl.transform.SetParent(go.transform, false);
+            var lblRT = lbl.GetComponent<RectTransform>();
+            lblRT.anchorMin = Vector2.zero; lblRT.anchorMax = Vector2.one; lblRT.sizeDelta = Vector2.zero;
+            var tmp = lbl.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) tmp.font = FontAsset;
             tmp.text               = text;
             tmp.fontSize           = size;
@@ -1144,13 +1395,176 @@ namespace SolarExpanseLaunchWindows
 
         private void FireAlarm(AlarmKey key)
         {
-            try { _clock?.PauseGame(); }
-            catch (Exception ex) { Plugin.Log.LogWarning($"[LW] PauseGame: {ex.Message}"); }
-
             string destName   = ephem?.GetDisplayName(key.DestId)   ?? key.DestId;
             string originName = ephem?.GetDisplayName(key.OriginId) ?? key.OriginId;
-            SpawnToast($"Launch window: {originName} → {destName}");
+            string kind = key.IsFastest ? "fastest" : "optimal";
+
+            if (!TryFireGameNotification(key.DestId, originName, destName, kind))
+                SpawnToast($"Launch window ({kind}): {originName} → {destName}");
+
             UpdateAllCheckboxVisuals();
+        }
+
+        // Fire a real game notification so it appears in "New Notifications" and is saved.
+        // Uses Schedule (13) which has locale text "Mission from {0} to {1} scheduled for {2}".
+        // Game pauses if the player's pause-on-notification toggle is enabled.
+        private bool TryFireGameNotification(string destId, string originName, string destName, string kind)
+        {
+            try
+            {
+                const BindingFlags bf = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+                var nm = UnityEngine.Object.FindObjectOfType(typeof(NotificationManager)) as NotificationManager;
+                if (nm == null) return false;
+
+                // GetNotification(ENotificationActionAfterClick.Schedule = 13)
+                var mGetNotif = nm.GetType().GetMethod("GetNotification", bf);
+                if (mGetNotif == null) return false;
+                var enumType  = mGetNotif.GetParameters()[0].ParameterType;
+                var notifData = mGetNotif.Invoke(nm, new object[] { Enum.ToObject(enumType, 13) });
+                if (notifData == null) return false;
+
+                // Player company
+                var omResult = GetOmAndPlayer();
+                var player   = omResult.player;
+                if (player == null) return false;
+
+                // Origin and destination ObjectInfos
+                var gameEphem = ephem as GameBodyEphemeris;
+                var destNb    = gameEphem?.GetNBodyForId(destId);
+                var destOI    = destNb?.GetObjectInfo();
+                var originNb  = gameEphem?.GetNBodyForId(OriginId ?? "");
+                var originOI  = originNb?.GetObjectInfo();
+
+                // Click handler: open destination planet panel
+                System.Action onClick = null;
+                if (destOI != null)
+                {
+                    var capOI = (object)destOI;
+                    onClick = () =>
+                    {
+                        var m = capOI.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                            .FirstOrDefault(mm => mm.Name == "MyOnMouseUpAsButton2");
+                        if (m != null)
+                        {
+                            var ps   = m.GetParameters();
+                            var args = new object[ps.Length];
+                            for (int i = 0; i < ps.Length; i++) args[i] = ps[i].DefaultValue;
+                            m.Invoke(capOI, args);
+                        }
+                    };
+                }
+
+                // Date string from alarm key — find the current alarm we're firing
+                string dateStr = "";
+                foreach (var k in _firedAlarms)
+                {
+                    if (k.DestId == destId)
+                    {
+                        dateStr = new System.DateTime(k.Year, k.Month, 1).ToString("MMM") +
+                                  " '" + (k.Year % 100).ToString("D2");
+                        break;
+                    }
+                }
+
+                // ShowNotification(NotificationData, Company, ObjectInfo, Action, params object[])
+                // Schedule locale: "Mission from {0} to {1} scheduled for {2}"
+                var mShow = nm.GetType().GetMethods(bf)
+                    .FirstOrDefault(m => m.Name == "ShowNotification" && m.GetParameters().Length >= 4);
+                if (mShow == null) return false;
+                mShow.Invoke(nm, new object[] { notifData, player, destOI, onClick,
+                    new object[] { originName, destName, dateStr } });
+
+                // After creation: swap notification icon to destination planet icon,
+                // and override text with colored origin/destination names.
+                var notifUILast = nm.GetType().GetField("notificationUILast", bf)?.GetValue(nm);
+                if (notifUILast != null)
+                {
+                    var notifType = notifUILast.GetType();
+                    // Swap image to destination planet icon
+                    if (destOI != null)
+                    {
+                        var destSprite = destOI.GetType().GetProperty("ImagePlanetUI", bf)?.GetValue(destOI) as Sprite;
+                        if (destSprite != null)
+                        {
+                            var imgField = notifType.GetField("image", bf);
+                            var img = imgField?.GetValue(notifUILast) as Image;
+                            if (img != null) img.sprite = destSprite;
+                        }
+                    }
+                    // Override text with highlighted names: "Earth → Mars\nlaunch window (optimal) Jul '37"
+                    var textField = notifType.GetField("text", bf);
+                    var tmp = textField?.GetValue(notifUILast) as TextMeshProUGUI;
+                    if (tmp != null)
+                    {
+                        string originHL = originOI?.GetType().GetProperty("ObjectNameHighLight", bf)?.GetValue(originOI) as string ?? originName;
+                        string destHL   = destOI?.GetType().GetProperty("ObjectNameHighLight", bf)?.GetValue(destOI) as string ?? destName;
+                        tmp.text = $"{originHL} → {destHL}\nlaunch window ({kind}){(string.IsNullOrEmpty(dateStr) ? "" : " " + dateStr)}";
+                    }
+                }
+
+                _clock.PauseGame();
+                Plugin.Log.LogInfo($"[LW] Notification fired: {originName} → {destName} ({kind})");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning($"[LW] TryFireGameNotification: {ex.Message}");
+                return false;
+            }
+        }
+
+        private void SpawnToast(Sprite iconA, Sprite iconB, string richText)
+        {
+            var canvas = GetComponentInParent<Canvas>();
+            if (canvas == null) return;
+
+            var toastGO = new GameObject("LWToast", typeof(RectTransform));
+            toastGO.transform.SetParent(canvas.transform, false);
+            toastGO.AddComponent<LayoutElement>().ignoreLayout = true;
+            var toastRT = toastGO.GetComponent<RectTransform>();
+            toastRT.anchorMin = new Vector2(0.5f, 0f); toastRT.anchorMax = new Vector2(0.5f, 0f);
+            toastRT.pivot = new Vector2(0.5f, 0f); toastRT.sizeDelta = new Vector2(320f, 48f);
+            toastRT.anchoredPosition = new Vector2(0f, 60f);
+            var bg = toastGO.AddComponent<Image>(); bg.color = new Color(0.05f, 0.50f, 0.58f, 0.95f); bg.raycastTarget = true;
+            var hlg = toastGO.AddComponent<HorizontalLayoutGroup>();
+            hlg.childControlHeight = true; hlg.childControlWidth = true;
+            hlg.childForceExpandHeight = true; hlg.childForceExpandWidth = false;
+            hlg.padding = new RectOffset(8, 2, 4, 4); hlg.spacing = 6f;
+
+            void AddIcon(Sprite spr) {
+                var iGO = new GameObject("Ic", typeof(RectTransform));
+                iGO.transform.SetParent(toastGO.transform, false);
+                iGO.AddComponent<LayoutElement>().preferredWidth = 24f;
+                var img = iGO.AddComponent<Image>();
+                img.raycastTarget = false;
+                if (spr != null) { img.sprite = spr; img.preserveAspect = true; }
+                else              img.color = Color.clear;
+            }
+            AddIcon(iconA);
+            AddIcon(iconB);
+
+            var msgGO = new GameObject("Msg", typeof(RectTransform));
+            msgGO.transform.SetParent(toastGO.transform, false);
+            msgGO.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            var msgTMP = msgGO.AddComponent<TextMeshProUGUI>();
+            if (FontAsset != null) msgTMP.font = FontAsset;
+            msgTMP.text = richText; msgTMP.fontSize = 10f;
+            msgTMP.color = Color.white; msgTMP.alignment = TextAlignmentOptions.Left;
+            msgTMP.enableWordWrapping = false; msgTMP.overflowMode = TextOverflowModes.Ellipsis;
+            msgTMP.richText = true; msgTMP.raycastTarget = false;
+
+            var closeGO = new GameObject("X", typeof(RectTransform));
+            closeGO.transform.SetParent(toastGO.transform, false);
+            closeGO.AddComponent<LayoutElement>().preferredWidth = 24f;
+            var cImg = closeGO.AddComponent<Image>(); cImg.color = new Color(1f, 1f, 1f, 0.08f);
+            var cBtn = closeGO.AddComponent<Button>(); cBtn.targetGraphic = cImg;
+            var capT = toastGO; cBtn.onClick.AddListener(() => Destroy(capT));
+            var cLbl = new GameObject("L", typeof(RectTransform)); cLbl.transform.SetParent(closeGO.transform, false);
+            var cLblRT = cLbl.GetComponent<RectTransform>(); cLblRT.anchorMin = Vector2.zero; cLblRT.anchorMax = Vector2.one; cLblRT.sizeDelta = Vector2.zero;
+            var cTMP = cLbl.AddComponent<TextMeshProUGUI>(); if (FontAsset != null) cTMP.font = FontAsset;
+            cTMP.text = "×"; cTMP.fontSize = 14f; cTMP.alignment = TextAlignmentOptions.Center;
+            cTMP.color = Color.white; cTMP.raycastTarget = false; cTMP.enableWordWrapping = false;
         }
 
         private void SpawnToast(string message)
@@ -1230,21 +1644,33 @@ namespace SolarExpanseLaunchWindows
             if (FontAsset != null) tmp.font = FontAsset;
             tmp.text = "□"; tmp.fontSize = forRow2 ? 7f : 8f;
             tmp.alignment = TextAlignmentOptions.Center;
-            tmp.color = CbUncheckedFg; tmp.enableWordWrapping = false; tmp.raycastTarget = false;
-            btn.gameObject.SetActive(false); // hidden until window data available
+            tmp.color = Color.clear; tmp.enableWordWrapping = false; tmp.raycastTarget = false;
+            img.color = Color.clear;
+            btn.interactable = false; // transparent + non-interactable until window data available
             return btn;
         }
 
-        private void ToggleAlarmForRow(string destId, bool isRow2)
+        private void ToggleAlarmForRow(string destId, bool isRow2, bool isFastest)
         {
-            if (!cache.TryGetValue(destId, out var entry)) return;
-            var window = isRow2 ? entry.opt2 : entry.opt1;
-            if (window == null || ephem == null) return;
-            if (!TryEpochToDate(window.Value.DepartureEpoch, out var depDate)) return;
+            string dest = ephem?.GetDisplayName(destId) ?? destId;
+            if (!cache.TryGetValue(destId, out var entry))
+            { Plugin.Log.LogInfo($"[LW] ToggleAlarm '{dest}': no cache entry"); return; }
+            LaunchWindow? window;
+            if (!isFastest) window = isRow2 ? entry.opt2 : entry.opt1;
+            else            window = isRow2 ? entry.fst2  : entry.fst1;
+            if (window == null)
+            { Plugin.Log.LogInfo($"[LW] ToggleAlarm '{dest}': window slot is null (row2={isRow2} fast={isFastest})"); return; }
+            if (ephem == null)
+            { Plugin.Log.LogInfo($"[LW] ToggleAlarm '{dest}': ephem null"); return; }
+            if (!TryEpochToDate(window.Value.DepartureEpoch, out var depDate))
+            { Plugin.Log.LogInfo($"[LW] ToggleAlarm '{dest}': TryEpochToDate failed"); return; }
 
-            var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month };
+            var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, IsFastest = isFastest };
             if (!_alarms.Remove(key)) _alarms.Add(key);
-            UpdateCheckboxVisual(destId, isRow2, _alarms.Contains(key));
+            bool armed = _alarms.Contains(key);
+            Plugin.Log.LogInfo($"[LW] ToggleAlarm '{dest}': armed={armed} row2={isRow2} fast={isFastest}");
+            int idx = (!isFastest ? 0 : 2) + (isRow2 ? 1 : 0);
+            UpdateCheckboxVisual(destId, idx, armed);
         }
 
         private bool TryEpochToDate(double epoch, out DateTime date)
@@ -1259,12 +1685,13 @@ namespace SolarExpanseLaunchWindows
             return true;
         }
 
-        private void UpdateCheckboxVisual(string destId, bool isRow2, bool armed)
+        private void UpdateCheckboxVisual(string destId, int idx, bool armed)
         {
             if (!rowCheckboxBtns.TryGetValue(destId, out var btns)) return;
-            var btn = btns[isRow2 ? 1 : 0];
+            if (idx < 0 || idx >= btns.Length) return;
+            var btn = btns[idx];
             if (btn == null) return;
-            btn.gameObject.SetActive(true);
+            btn.interactable = true;
             var img = btn.GetComponent<Image>();
             var tmp = btn.GetComponentInChildren<TextMeshProUGUI>();
             if (img != null) img.color = armed ? CbCheckedBg : CbUncheckedBg;
@@ -1275,22 +1702,31 @@ namespace SolarExpanseLaunchWindows
         {
             var ge = GravityEngine.Instance();
             if (ge == null) return;
-            foreach (var destId in destIds)
+            foreach (var destId in DestIds)
             {
                 if (!rowCheckboxBtns.TryGetValue(destId, out var btns)) continue;
                 cache.TryGetValue(destId, out var entry);
-                for (int i = 0; i < 2; i++)
+                // idx: 0=opt1, 1=opt2, 2=fst1, 3=fst2
+                var windows    = new LaunchWindow?[] { entry.opt1, entry.opt2, entry.fst1, entry.fst2 };
+                var isFastests = new bool[]          { false,      false,      true,       true       };
+                for (int i = 0; i < 4; i++)
                 {
+                    if (i >= btns.Length) break;
                     var btn = btns[i];
                     if (btn == null) continue;
-                    var window = i == 0 ? entry.opt1 : entry.opt2;
-                    if (window == null) { btn.gameObject.SetActive(false); continue; }
-                    if (!TryEpochToDate(window.Value.DepartureEpoch, out var depDate)) { btn.gameObject.SetActive(false); continue; }
-                    btn.gameObject.SetActive(true);
-                    var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month };
-                    bool armed = _alarms.Contains(key);
+                    var window = windows[i];
                     var img = btn.GetComponent<Image>();
                     var tmp = btn.GetComponentInChildren<TextMeshProUGUI>();
+                    if (window == null || !TryEpochToDate(window.Value.DepartureEpoch, out var depDate))
+                    {
+                        btn.interactable = false;
+                        if (img != null) img.color = Color.clear;
+                        if (tmp != null) tmp.color = Color.clear;
+                        continue;
+                    }
+                    btn.interactable = true;
+                    var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, IsFastest = isFastests[i] };
+                    bool armed = _alarms.Contains(key);
                     if (img != null) img.color = armed ? CbCheckedBg : CbUncheckedBg;
                     if (tmp != null) { tmp.text = armed ? "✓" : "□"; tmp.color = armed ? CbCheckedFg : CbUncheckedFg; }
                 }
@@ -1302,6 +1738,27 @@ namespace SolarExpanseLaunchWindows
         private void TryApplySidecarData()
         {
             if (_sidecarApplied || ephem == null) return;
+            if (!_sidecarLoaded)
+            {
+                // ExtractFromSaveGameData may have been called before Panel was set up.
+                // Probe LoadSaveManager directly now that ephem is ready.
+                try
+                {
+                    const BindingFlags bf2 = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                    var lsm = UnityEngine.Object.FindObjectOfType(typeof(Manager.LoadSaveManager));
+                    if (lsm != null)
+                    {
+                        var saveName = lsm.GetType().GetProperty("LastSaveName", bf2)?.GetValue(lsm) as string;
+                        if (!string.IsNullOrEmpty(saveName))
+                            LoadFromSidecar(saveName);
+                        else
+                            return; // save name not set yet — wait for next frame
+                    }
+                    else return;
+                }
+                catch { return; }
+                if (!_sidecarLoaded) _sidecarLoaded = true; // prevent infinite loop on error
+            }
             _sidecarApplied = true;
             ApplySidecarData();
         }
@@ -1316,7 +1773,7 @@ namespace SolarExpanseLaunchWindows
                 if (earthIdx >= 0) { originIndex = earthIdx; UpdateOriginLabel(); }
                 var marsId = ephem.AllBodyIds.FirstOrDefault(id =>
                     string.Equals(ephem.GetDisplayName(id), "Mars", StringComparison.OrdinalIgnoreCase));
-                if (marsId != null && !destIds.Contains(marsId)) destIds.Add(marsId);
+                if (marsId != null && !DestIds.Contains(marsId)) DestIds.Add(marsId);
                 needsRefresh = true;
                 return;
             }
@@ -1325,20 +1782,50 @@ namespace SolarExpanseLaunchWindows
                 int idx = originIds.IndexOf(_sidecarData.originId);
                 if (idx >= 0) { originIndex = idx; UpdateOriginLabel(); }
             }
+            if (!string.IsNullOrEmpty(_sidecarData.selectedCraftName) && !_craftManuallySelected)
+            {
+                var crafts = GetAllCraftDv();
+                foreach (var c in crafts)
+                {
+                    if (c.name == _sidecarData.selectedCraftName)
+                    {
+                        _craftManuallySelected = true;
+                        SetCraft(c.name, c.maxDvKmS, c.maxCargo, c.exhaustV, c.dryMass, c.fuel, c.solarRangeAU);
+                        break;
+                    }
+                }
+            }
             var allIds = new HashSet<string>(ephem.AllBodyIds);
-            destIds = (_sidecarData.destIds ?? new List<string>()).Where(id => allIds.Contains(id)).ToList();
+            _destsByOrigin.Clear();
+            if (_sidecarData.originDests?.Count > 0)
+            {
+                foreach (var od in _sidecarData.originDests)
+                    if (!string.IsNullOrEmpty(od.originId))
+                        _destsByOrigin[od.originId] = (od.destIds ?? new List<string>())
+                            .Where(id => allIds.Contains(id)).ToList();
+            }
+            else if (_sidecarData.destIds?.Count > 0)
+            {
+                // v1 compat: treat saved DestIds as belonging to the saved origin
+                var v1Origin = _sidecarData.originId;
+                if (!string.IsNullOrEmpty(v1Origin))
+                    _destsByOrigin[v1Origin] = _sidecarData.destIds
+                        .Where(id => allIds.Contains(id)).ToList();
+            }
             _alarms.Clear();
             foreach (var a in _sidecarData.alarms ?? new List<LWAlarmSave>())
-                _alarms.Add(new AlarmKey { OriginId = a.originId, DestId = a.destId, Year = a.year, Month = a.month });
+                _alarms.Add(new AlarmKey { OriginId = a.originId, DestId = a.destId, Year = a.year, Month = a.month, IsFastest = a.isFastest });
 
             var ge2 = GravityEngine.Instance();
             double physNow2 = ge2 != null ? ge2.GetPhysicalTimeDouble() : 0;
-            var (promoted, needsOpt2) = LWCacheHelper.PromoteWindowCache(
+            var (promoted, needsOpt2, needsFst) = LWCacheHelper.PromoteWindowCache(
                 _sidecarData.windowCache, allIds, physNow2);
             cache.Clear();
             _needsOpt2Recalc.Clear();
+            _needsFstRecalc.Clear();
             foreach (var kv in promoted) cache[kv.Key] = kv.Value;
             foreach (var id in needsOpt2) _needsOpt2Recalc.Add(id);
+            foreach (var id in needsFst)  _needsFstRecalc.Add(id);
 
             needsRefresh = true;
         }
@@ -1365,20 +1852,33 @@ namespace SolarExpanseLaunchWindows
         {
             try
             {
-                var data = new LWSaveData
-                {
-                    originId = OriginId ?? "",
-                    destIds  = new List<string>(destIds),
-                    alarms   = _alarms.Select(a => new LWAlarmSave
-                        { originId = a.OriginId, destId = a.DestId, year = a.Year, month = a.Month }).ToList(),
-                    windowCache = cache.Select(kv => new LWDestCacheSave
+                var originDestsList = new List<LWOriginDestsSave>();
+                foreach (var kv in _destsByOrigin)
+                    originDestsList.Add(new LWOriginDestsSave { originId = kv.Key, destIds = new List<string>(kv.Value) });
+
+                var alarmsList = new List<LWAlarmSave>();
+                foreach (var a in _alarms)
+                    alarmsList.Add(new LWAlarmSave { originId = a.OriginId, destId = a.DestId, year = a.Year, month = a.Month, isFastest = a.IsFastest });
+
+                var cacheList = new List<LWDestCacheSave>();
+                foreach (var kv in cache)
+                    cacheList.Add(new LWDestCacheSave
                     {
                         destId = kv.Key,
-                        opt1 = kv.Value.opt1.HasValue ? LWSaveConvert.ToSave(kv.Value.opt1.Value) : null,
-                        fst1 = kv.Value.fst1.HasValue ? LWSaveConvert.ToSave(kv.Value.fst1.Value) : null,
-                        opt2 = kv.Value.opt2.HasValue ? LWSaveConvert.ToSave(kv.Value.opt2.Value) : null,
-                        fst2 = kv.Value.fst2.HasValue ? LWSaveConvert.ToSave(kv.Value.fst2.Value) : null,
-                    }).ToList()
+                        opt1   = kv.Value.opt1.HasValue ? LWSaveConvert.ToSave(kv.Value.opt1.Value) : null,
+                        fst1   = kv.Value.fst1.HasValue ? LWSaveConvert.ToSave(kv.Value.fst1.Value) : null,
+                        opt2   = kv.Value.opt2.HasValue ? LWSaveConvert.ToSave(kv.Value.opt2.Value) : null,
+                        fst2   = kv.Value.fst2.HasValue ? LWSaveConvert.ToSave(kv.Value.fst2.Value) : null,
+                    });
+
+                var data = new LWSaveData
+                {
+                    originId          = OriginId ?? "",
+                    selectedCraftName = _selectedCraftName ?? "",
+                    destIds           = new List<string>(DestIds),
+                    originDests       = originDestsList,
+                    alarms            = alarmsList,
+                    windowCache       = cacheList,
                 };
                 string path = SidecarPath(saveName);
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -1394,6 +1894,10 @@ namespace SolarExpanseLaunchWindows
             foreach (var ext in new[] { ".json.gz", ".info.gz", ".json", ".gz" })
                 if (name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
                     name = name.Substring(0, name.Length - ext.Length);
+            // Strip in-game date and slot suffix so the sidecar is stable across saves:
+            // "NASA REALISTIC SOLAR SYSTEM 2035-12-11_3" → "NASA REALISTIC SOLAR SYSTEM"
+            name = System.Text.RegularExpressions.Regex.Replace(
+                name, @"\s+\d{4}-\d{2}-\d{2}(_\d+)?$", "");
             if (string.IsNullOrWhiteSpace(name)) name = "default";
             return Path.Combine(
                 Path.GetDirectoryName(Plugin.Location ?? "") ?? "",

@@ -8,8 +8,8 @@ namespace SolarExpanseLaunchWindowsTests
     [TestFixture]
     internal class AlarmTests
     {
-        private static AlarmKey Key(string origin, string dest, int year, int month) =>
-            new AlarmKey { OriginId = origin, DestId = dest, Year = year, Month = month };
+        private static AlarmKey Key(string origin, string dest, int year, int month, bool isFastest = false) =>
+            new AlarmKey { OriginId = origin, DestId = dest, Year = year, Month = month, IsFastest = isFastest };
 
         // ── GetAlarmsToFire ──────────────────────────────────────────────────────
 
@@ -83,6 +83,24 @@ namespace SolarExpanseLaunchWindowsTests
             var a = Key("earth", "mars",    2030, 3);
             var b = Key("earth", "jupiter", 2030, 3);
             Assert.That(a, Is.Not.EqualTo(b));
+        }
+
+        [Test]
+        public void AlarmKey_DifferentIsFastest_NotEqual()
+        {
+            var a = Key("earth", "mars", 2030, 3, isFastest: false);
+            var b = Key("earth", "mars", 2030, 3, isFastest: true);
+            Assert.That(a, Is.Not.EqualTo(b));
+            Assert.That(a.GetHashCode(), Is.Not.EqualTo(b.GetHashCode()));
+        }
+
+        [Test]
+        public void AlarmKey_SameIsFastest_Equal()
+        {
+            var a = Key("earth", "mars", 2030, 3, isFastest: true);
+            var b = Key("earth", "mars", 2030, 3, isFastest: true);
+            Assert.That(a, Is.EqualTo(b));
+            Assert.That(a.GetHashCode(), Is.EqualTo(b.GetHashCode()));
         }
 
         [Test]

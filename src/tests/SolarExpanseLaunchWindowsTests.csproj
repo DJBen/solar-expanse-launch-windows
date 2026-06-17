@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../core/SolarExpanseLaunchWindowsCore.csproj" />
+    <ProjectReference Include="../mod/SolarExpanseLaunchWindows.csproj" />
   </ItemGroup>
 
 </Project>

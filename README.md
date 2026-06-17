@@ -43,14 +43,4 @@ important output.
 
 ## Building from source
 
-Requires .NET SDK and the game installed locally.
-
-```bash
-git clone https://github.com/stockmaj/solar-expanse-launch-windows
-cd solar-expanse-launch-windows
-bash build.sh
-```
-
-`build.sh` compiles the mod and copies the DLL directly into your local game's
-`BepInEx/plugins/` folder. Set `SOLAR_EXPANSE_GAME=<path>` to override the
-default game location.
+See [CONTRIBUTING.md](CONTRIBUTING.md).

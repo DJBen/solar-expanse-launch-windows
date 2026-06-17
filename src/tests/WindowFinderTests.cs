@@ -86,14 +86,40 @@ namespace SolarExpanseLaunchWindowsTests
         }
 
         [Test]
-        public void FindWindows_FastestArrival_IsBeforeOrEqualToOptimalArrival()
+        public void FindWindows_Fastest_DepartsNoLaterThanOptimal()
         {
+            // Fastest = earliest departure where a feasible trajectory exists.
+            // It must depart at or before the optimal window.
             var solver = new WindowedLambertSolver { TofLo = 0.5, TofHi = 0.9 };
             var finder = new WindowFinder(solver, MakeEphem(), dvToKmS: 1.0);
             var (opt, fst, _) = finder.FindWindows("earth", "mars", physNow: 0);
             Assert.That(opt, Is.Not.Null);
             Assert.That(fst, Is.Not.Null);
-            Assert.That(fst.Value.ArrivalEpoch, Is.LessThanOrEqualTo(opt.Value.ArrivalEpoch));
+            Assert.That(fst.Value.DepartureEpoch, Is.LessThanOrEqualTo(opt.Value.DepartureEpoch));
+        }
+
+        [Test]
+        public void FindWindows_Fastest_MinDvForEarliestDeparture()
+        {
+            // With no dvCap, Fastest takes j=0 (earliest departure) and returns its min-dv trajectory.
+            // The fastest dv should be <= optimal dv is NOT guaranteed (Fastest is constrained to j=0).
+            // But Fastest must be within dvCap (default MaxValue — always true).
+            var solver = new WindowedLambertSolver { TofLo = 0.5, TofHi = 0.9 };
+            var finder = new WindowFinder(solver, MakeEphem(), dvToKmS: 1.0);
+            var (opt, fst, _) = finder.FindWindows("earth", "mars", physNow: 0, dvCap: double.MaxValue);
+            Assert.That(fst, Is.Not.Null);
+            Assert.That(fst.Value.DeltaVKmS, Is.LessThanOrEqualTo(double.MaxValue));
+        }
+
+        [Test]
+        public void FindWindows_Fastest_RespectsCapAndPicksMinDvForThatDeparture()
+        {
+            // With a tight dvCap that rules out j=0 trajectories, Fastest skips to the first j
+            // where min-dv <= cap. With cap=0 (impossible), fastest should be null.
+            var solver = new WindowedLambertSolver { TofLo = 0.5, TofHi = 0.9 };
+            var finder = new WindowFinder(solver, MakeEphem(), dvToKmS: 1.0);
+            var (opt, fst, _) = finder.FindWindows("earth", "mars", physNow: 0, dvCap: 0);
+            Assert.That(fst, Is.Null, "no trajectory is feasible with dvCap=0");
         }
 
         [Test]

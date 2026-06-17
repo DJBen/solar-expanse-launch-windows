@@ -4,15 +4,15 @@ namespace SolarExpanseLaunchWindows
 {
     internal class WindowFinder
     {
-        private readonly GameLambertSolver solver;
-        private readonly GameBodyEphemeris ephem;
+        private readonly ILambertSolver solver;
+        private readonly IBodyEphemeris ephem;
         private readonly double dvToKmS;
 
         // Scene-configured values (MySceneGame.unity, all 4 LambertPorkchop instances)
         private const int DepIntervals = 200;
         private const int ArrIntervals = 200;
 
-        public WindowFinder(GameLambertSolver solver, GameBodyEphemeris ephem, double dvToKmS)
+        public WindowFinder(ILambertSolver solver, IBodyEphemeris ephem, double dvToKmS)
         {
             this.solver = solver;
             this.ephem = ephem;
@@ -77,6 +77,7 @@ namespace SolarExpanseLaunchWindows
             double bestDepOpt = 0, bestArrOpt = 0;
             int    bestOptJ   = 0;
 
+            // Fastest: earliest arrival within dvCap.
             double earliestArr = double.MaxValue;
             double fastDv = 0, fastDep = 0, fastArr = 0;
 
@@ -84,7 +85,6 @@ namespace SolarExpanseLaunchWindows
             {
                 double tDep   = depStart + j * depStep;
                 var fromState = ephem.GetState(originId, tDep);
-                bool fastDone  = false;
 
                 for (int k = 0; k <= ArrIntervals; k++)
                 {
@@ -112,15 +112,14 @@ namespace SolarExpanseLaunchWindows
                         bestOptJ   = j;
                     }
 
-                    // Fastest: earliest arrival within dvCap; arrivals are in ascending order,
-                    // so the first valid k for this departure is the earliest for it.
-                    if (!fastDone && tArr < earliestArr && dv <= dvCap)
+                    // Fastest: earliest arrival within dvCap; arrivals are in ascending order
+                    // within each departure column so we track the global minimum arrival.
+                    if (dv <= dvCap && tArr < earliestArr)
                     {
                         earliestArr = tArr;
                         fastDv  = dv;
                         fastDep = tDep;
                         fastArr = tArr;
-                        fastDone = true;
                     }
                 }
             }

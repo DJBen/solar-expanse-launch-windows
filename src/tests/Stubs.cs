@@ -35,6 +35,7 @@ namespace SolarExpanseLaunchWindowsTests
         }
 
         public IEnumerable<string> AllBodyIds => _bodies.Keys;
+        public IEnumerable<string> ValidBodyIds => _bodies.Keys;
         public string GetDisplayName(string bodyId) => bodyId;
         public void SnapshotPropagators() { }
         public List<string> GetSortedOriginIds() => new List<string>(_bodies.Keys);

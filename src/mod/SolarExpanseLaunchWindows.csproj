@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFrameworks>net472;netstandard2.0</TargetFrameworks>
     <LangVersion>9.0</LangVersion>
     <AssemblyName>SolarExpanseLaunchWindows</AssemblyName>
     <RootNamespace>SolarExpanseLaunchWindows</RootNamespace>
@@ -15,17 +15,17 @@
     <SolarExpanseInstall>$(HOME)/Applications/Sikarugir/Steam Wine.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Solar Expanse</SolarExpanseInstall>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="../core/SolarExpanseLaunchWindowsCore.csproj" />
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <Compile Remove="GameBodyEphemeris.cs" />
+    <Compile Remove="GameClock.cs" />
+    <Compile Remove="GameLambertSolver.cs" />
+    <Compile Remove="LaunchWindowPanel.cs" />
+    <Compile Remove="Plugin.cs" />
+    <Compile Remove="Patches\NotificationManagerPatch.cs" />
+    <Compile Remove="UI\LaunchWindowInjector.cs" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- These files now live in core -->
-    <Compile Remove="Types.cs" />
-    <Compile Remove="WindowFinder.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <Reference Include="BepInEx">
       <HintPath>$(SolarExpanseInstall)/BepInEx/core/BepInEx.dll</HintPath>
       <Private>false</Private>

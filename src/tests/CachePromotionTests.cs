@@ -28,7 +28,7 @@ namespace SolarExpanseLaunchWindowsTests
         public void BothWindows_Opt1Valid_FullEntryRestored()
         {
             var entries = new[] { Entry("mars", opt1Dep: 15.0, fst1Dep: 14.0, opt2Dep: 17.0, fst2Dep: 16.5) };
-            var (cache, needsRecalc) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
+            var (cache, needsOpt2, needsFst) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
 
             Assert.That(cache.ContainsKey("mars"), Is.True);
             var e = cache["mars"];
@@ -36,14 +36,15 @@ namespace SolarExpanseLaunchWindowsTests
             Assert.That(e.Item3.HasValue, Is.True, "opt2 present");
             Assert.That(e.Item1.Value.DepartureEpoch, Is.EqualTo(15.0));
             Assert.That(e.Item3.Value.DepartureEpoch, Is.EqualTo(17.0));
-            Assert.That(needsRecalc, Does.Not.Contain("mars"));
+            Assert.That(needsOpt2, Does.Not.Contain("mars"));
+            Assert.That(needsFst,  Does.Not.Contain("mars"));
         }
 
         [Test]
         public void Opt1Stale_Opt2Valid_Promoted()
         {
             var entries = new[] { Entry("mars", opt1Dep: 5.0, fst1Dep: 4.5, opt2Dep: 15.0, fst2Dep: 14.5) };
-            var (cache, needsRecalc) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
+            var (cache, needsOpt2, needsFst) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
 
             Assert.That(cache.ContainsKey("mars"), Is.True);
             var e = cache["mars"];
@@ -56,24 +57,24 @@ namespace SolarExpanseLaunchWindowsTests
             // opt2/fst2 slots are empty (awaiting recalc)
             Assert.That(e.Item3.HasValue, Is.False, "opt2 cleared for recalc");
             Assert.That(e.Item4.HasValue, Is.False, "fst2 cleared for recalc");
-            Assert.That(needsRecalc, Does.Contain("mars"));
+            Assert.That(needsOpt2, Does.Contain("mars"));
         }
 
         [Test]
         public void BothStale_EntryAbsentFromCache()
         {
             var entries = new[] { Entry("mars", opt1Dep: 5.0, opt2Dep: 8.0) };
-            var (cache, needsRecalc) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
+            var (cache, needsOpt2, _) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
 
             Assert.That(cache.ContainsKey("mars"), Is.False);
-            Assert.That(needsRecalc, Does.Not.Contain("mars"));
+            Assert.That(needsOpt2, Does.Not.Contain("mars"));
         }
 
         [Test]
         public void Opt1Stale_NoOpt2_EntryAbsent()
         {
             var entries = new[] { Entry("mars", opt1Dep: 5.0) };
-            var (cache, _) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
+            var (cache, _, _) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
             Assert.That(cache.ContainsKey("mars"), Is.False);
         }
 
@@ -81,16 +82,17 @@ namespace SolarExpanseLaunchWindowsTests
         public void UnknownBodyId_Skipped()
         {
             var entries = new[] { Entry("pluto", opt1Dep: 15.0) };
-            var (cache, _) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
+            var (cache, _, _) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
             Assert.That(cache.ContainsKey("pluto"), Is.False);
         }
 
         [Test]
         public void NullEntries_ReturnsEmpty()
         {
-            var (cache, needsRecalc) = LWCacheHelper.PromoteWindowCache(null, ValidIds, Now);
+            var (cache, needsOpt2, needsFst) = LWCacheHelper.PromoteWindowCache(null, ValidIds, Now);
             Assert.That(cache.Count, Is.EqualTo(0));
-            Assert.That(needsRecalc.Count, Is.EqualTo(0));
+            Assert.That(needsOpt2.Count, Is.EqualTo(0));
+            Assert.That(needsFst.Count, Is.EqualTo(0));
         }
 
         [Test]
@@ -101,13 +103,58 @@ namespace SolarExpanseLaunchWindowsTests
                 Entry("mars",  opt1Dep: 15.0, opt2Dep: 17.0),   // both valid
                 Entry("venus", opt1Dep: 5.0,  opt2Dep: 12.0),   // opt1 stale, opt2 valid → promote
             };
-            var (cache, needsRecalc) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
+            var (cache, needsOpt2, _) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
 
             Assert.That(cache["mars"].Item1.Value.DepartureEpoch, Is.EqualTo(15.0));
-            Assert.That(needsRecalc, Does.Not.Contain("mars"));
+            Assert.That(needsOpt2, Does.Not.Contain("mars"));
 
             Assert.That(cache["venus"].Item1.Value.DepartureEpoch, Is.EqualTo(12.0));
-            Assert.That(needsRecalc, Does.Contain("venus"));
+            Assert.That(needsOpt2, Does.Contain("venus"));
+        }
+
+        // --- fst1 staleness ---
+
+        [Test]
+        public void Opt1Valid_Fst1Stale_NoFst2_NullsFst1_AddsToFstRecalc()
+        {
+            // opt1 future, fst1 in the past, no fst2
+            var entries = new[] { Entry("mars", opt1Dep: 15.0, fst1Dep: 5.0, opt2Dep: 17.0) };
+            var (cache, needsOpt2, needsFst) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
+
+            Assert.That(cache.ContainsKey("mars"), Is.True);
+            var e = cache["mars"];
+            Assert.That(e.Item1.Value.DepartureEpoch, Is.EqualTo(15.0), "opt1 intact");
+            Assert.That(e.Item2.HasValue, Is.False, "fst1 nulled — was stale, no fst2 to promote");
+            Assert.That(needsOpt2, Does.Not.Contain("mars"));
+            Assert.That(needsFst,  Does.Contain("mars"));
+        }
+
+        [Test]
+        public void Opt1Valid_Fst1Stale_Fst2Valid_PromotesFst2_AddsToFstRecalc()
+        {
+            // opt1 future, fst1 in the past, fst2 still valid
+            var entries = new[] { Entry("mars", opt1Dep: 15.0, fst1Dep: 5.0, opt2Dep: 17.0, fst2Dep: 16.0) };
+            var (cache, needsOpt2, needsFst) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
+
+            Assert.That(cache.ContainsKey("mars"), Is.True);
+            var e = cache["mars"];
+            Assert.That(e.Item1.Value.DepartureEpoch, Is.EqualTo(15.0), "opt1 intact");
+            Assert.That(e.Item2.HasValue, Is.True, "fst1 = promoted fst2");
+            Assert.That(e.Item2.Value.DepartureEpoch, Is.EqualTo(16.0), "fst2 promoted to fst1");
+            Assert.That(e.Item4.HasValue, Is.False, "fst2 cleared for recalc");
+            Assert.That(needsOpt2, Does.Not.Contain("mars"));
+            Assert.That(needsFst,  Does.Contain("mars"));
+        }
+
+        [Test]
+        public void Opt1Valid_Fst1Valid_NotInFstRecalc()
+        {
+            // opt1 and fst1 both future — no fst recalc needed
+            var entries = new[] { Entry("mars", opt1Dep: 15.0, fst1Dep: 14.0, opt2Dep: 17.0, fst2Dep: 16.0) };
+            var (cache, _, needsFst) = LWCacheHelper.PromoteWindowCache(entries, ValidIds, Now);
+
+            Assert.That(cache["mars"].Item2.Value.DepartureEpoch, Is.EqualTo(14.0), "fst1 unchanged");
+            Assert.That(needsFst, Does.Not.Contain("mars"));
         }
     }
 }

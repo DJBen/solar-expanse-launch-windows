@@ -6,20 +6,30 @@ namespace SolarExpanseLaunchWindows
     [Serializable]
     internal class LWSaveData
     {
-        public int          version     = 1;
-        public string       originId    = "";
-        public List<string> destIds     = new List<string>();
+        public int          version          = 2;
+        public string       originId         = "";
+        public string       selectedCraftName = "";
+        public List<string> destIds     = new List<string>(); // v1 compat
+        public List<LWOriginDestsSave> originDests = new List<LWOriginDestsSave>();
         public List<LWAlarmSave>     alarms      = new List<LWAlarmSave>();
         public List<LWDestCacheSave> windowCache = new List<LWDestCacheSave>();
     }
 
     [Serializable]
+    public class LWOriginDestsSave
+    {
+        public string       originId = "";
+        public List<string> destIds  = new List<string>();
+    }
+
+    [Serializable]
     internal class LWAlarmSave
     {
-        public string originId = "";
-        public string destId   = "";
+        public string originId  = "";
+        public string destId    = "";
         public int    year;
         public int    month;
+        public bool   isFastest = false;
     }
 
     [Serializable]

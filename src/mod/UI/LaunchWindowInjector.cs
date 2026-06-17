@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using Language;
 using Manager;
 using TMPro;
 using UnityEngine;
@@ -12,10 +13,10 @@ namespace SolarExpanseLaunchWindows.UI
 {
     internal static class LaunchWindowInjector
     {
-        static readonly FieldInfo FieldShowBtn =
+        internal static readonly FieldInfo FieldShowBtn =
             typeof(NotificationManager).GetField("showNotificationHistory",
                 BindingFlags.Instance | BindingFlags.NonPublic);
-        static readonly FieldInfo FieldHistoryGO =
+        internal static readonly FieldInfo FieldHistoryGO =
             typeof(NotificationManager).GetField("notificationHistory",
                 BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -33,6 +34,15 @@ namespace SolarExpanseLaunchWindows.UI
                 if (canvas == null) { Plugin.Log.LogError("[LW] Canvas not found"); return; }
 
                 TMP_FontAsset font = historyGO.GetComponentInChildren<TextMeshProUGUI>(true)?.font;
+                // Prefer Oxanium (the game's heading font) for a cleaner look; fall back to Inter.
+                TMP_FontAsset oxanium = null;
+                foreach (var f in Resources.FindObjectsOfTypeAll<TMP_FontAsset>())
+                {
+                    if (f.name.IndexOf("Oxanium", StringComparison.OrdinalIgnoreCase) >= 0)
+                    { oxanium = f; break; }
+                }
+                TMP_FontAsset headerFont = oxanium ?? font;
+                LWTooltip.Font = font;
 
                 // ── Panel: clone notificationHistory for background style ──────────────────────
                 GameObject panelGO = UnityEngine.Object.Instantiate(historyGO, canvas.transform);
@@ -97,20 +107,23 @@ namespace SolarExpanseLaunchWindows.UI
                 var statusTMP = MakeRowLabel("Status", panelGO.transform, font,
                     "Not yet calculated", 9f, 12f, TextAlignmentOptions.Left, muted: true);
 
-                // Row 3: Column headers
+                // Row 3: Column headers — use game locale keys so they match the player's language.
                 var colHdrGO = MakeHRow("ColHdr", panelGO.transform, 13f, 0f);
-                MakeColLabel("CH0", colHdrGO.transform, font, "Destination", 9f, 105f, TextAlignmentOptions.Left,  bold: true);
-                MakeColLabel("CH1", colHdrGO.transform, font, "OPTIMAL",     9f, 255f, TextAlignmentOptions.Center, bold: true);
-                MakeColLabel("CHSep", colHdrGO.transform, font, "",           9f,   8f, TextAlignmentOptions.Left);
-                MakeColLabel("CH2", colHdrGO.transform, font, "FASTEST",     9f, 255f, TextAlignmentOptions.Center, bold: true);
+                MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 9f, 105f, TextAlignmentOptions.Left, bold: true);
+                // 12px spacer + 243px label keeps OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
+                MakeColLabel("CHNT1", colHdrGO.transform, font, "", 9f, 12f, TextAlignmentOptions.Left);
+                MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 9f, 243f, TextAlignmentOptions.Left, bold: true);
+                MakeColLabel("CHSep", colHdrGO.transform, font, "", 9f, 8f, TextAlignmentOptions.Left);
+                MakeColLabel("CHNT2", colHdrGO.transform, font, "", 9f, 12f, TextAlignmentOptions.Left);
+                MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 9f, 243f, TextAlignmentOptions.Left, bold: true);
 
                 // Row 4: Sub-header — cells must match LaunchWindowPanel OPT_*/FST_* constants.
                 // Optimal: dep=62 dv=78 tvl=flex; Fastest: dep=70 dv=88 tvl=flex
                 var subHdrGO = MakeHRow("SubHdr", panelGO.transform, 12f, 0f);
                 MakeColLabel("SH0", subHdrGO.transform, font, "", 9f, 105f, TextAlignmentOptions.Left, muted: true);
-                var (optDepBtn, optDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, isOptimal: true);
+                var (optDepBtn, optDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: true);
                 MakeColLabel("SHSep", subHdrGO.transform, font, "", 9f, 8f, TextAlignmentOptions.Left);
-                var (fstDepBtn, fstDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, isOptimal: false);
+                var (fstDepBtn, fstDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: false);
 
                 // Divider
                 Divider("Div", panelGO.transform);
@@ -180,6 +193,7 @@ namespace SolarExpanseLaunchWindows.UI
                     fixedWidth: 62f, height: 18f,
                     bgColor: new Color(0.06f, 0.18f, 0.10f, 0.55f),
                     hoverColor: new Color(0.10f, 0.32f, 0.16f, 0.80f));
+                AddTooltip(basesBtn.gameObject, "Adds any body where you have at least one facility built (including parent planet of moons). Probes are excluded.");
                 var searchInput = MakeInputField("SearchField", searchRowGO.transform, font, "Search bodies…", 18f);
 
                 // Calculating overlay — full-panel, shown during refresh
@@ -244,7 +258,8 @@ namespace SolarExpanseLaunchWindows.UI
                 panel.OriginBtn     = originBtn;
                 panel.CraftBtn      = craftBtn;
                 panel.ContentParent = contentGO.transform;
-                panel.FontAsset     = font;
+                panel.FontAsset       = font;
+                panel.HeaderFontAsset = headerFont;
                 panel.PanelRT       = panelRT;
                 panel.OriginDropGO     = originDropGO;
                 panel.OriginFilterInput = originFilterField;
@@ -375,12 +390,16 @@ namespace SolarExpanseLaunchWindows.UI
             return tmp;
         }
 
-        // Sub-header group — "Departs" cell is a clickable button for sorting.
-        // isOptimal=true uses Optimal column widths and adds a Cargo cell.
-        static (Button depBtn, TextMeshProUGUI depTMP) MakeSubHdrGroup(Transform parent, TMP_FontAsset font, bool isOptimal = false)
+        // Sub-header group — layout EXACTLY mirrors CreateRow's DepCell structure so they align.
+        // Both columns: [DepCell(NT 12px + Departs depTextW px)][dvW Δv][flex Travel]
+        // NT uses Image+LayoutElement (no TMP on GO, label on child) — same as row checkbox —
+        // so TMP's ILayoutElement never competes with LayoutElement.preferredWidth.
+        static (Button depBtn, TextMeshProUGUI depTMP) MakeSubHdrGroup(Transform parent, TMP_FontAsset font, TMP_FontAsset headerFont, bool isOptimal = false)
         {
-            float depW = isOptimal ? 62f : 70f;
-            float dvW  = isOptimal ? 78f : 88f;
+            float ntW      = 12f;
+            float depTextW = isOptimal ? 50f : 58f;
+            float depCellW = ntW + depTextW; // 62 or 70 — matches OPT_DEP_W / FST_DEP_W
+            float dvW      = isOptimal ? 78f : 88f;
 
             var go = new GameObject("SubGrp", typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -390,11 +409,33 @@ namespace SolarExpanseLaunchWindows.UI
             hlg.childForceExpandHeight = true; hlg.childForceExpandWidth = false;
             hlg.spacing = 0f;
 
-            // Departs — clickable sort button
+            // DepCell container — mirrors row's DepCell (62/70px HLG wrapper).
+            var dcGO = new GameObject("DC", typeof(RectTransform));
+            dcGO.transform.SetParent(go.transform, false);
+            dcGO.AddComponent<LayoutElement>().preferredWidth = depCellW;
+            var dcHlg = dcGO.AddComponent<HorizontalLayoutGroup>();
+            dcHlg.childControlHeight = true; dcHlg.childControlWidth = true;
+            dcHlg.childForceExpandHeight = true; dcHlg.childForceExpandWidth = false;
+            dcHlg.spacing = 0f;
+
+            // NT cell (12px) — mirrors row checkbox: Image+LayoutElement on GO, TMP label on child.
+            var ntGO  = new GameObject("NT", typeof(RectTransform));
+            ntGO.transform.SetParent(dcGO.transform, false);
+            ntGO.AddComponent<LayoutElement>().preferredWidth = ntW;
+            var ntImg = ntGO.AddComponent<Image>(); ntImg.color = Color.clear; ntImg.raycastTarget = true;
+            ntGO.AddComponent<LWTooltipTrigger>().Text = "Notify: click ☐ to get an in-game notification when this departure window arrives.";
+            var ntLblGO = new GameObject("L", typeof(RectTransform));
+            ntLblGO.transform.SetParent(ntGO.transform, false);
+            var ntLblRT = ntLblGO.GetComponent<RectTransform>();
+            ntLblRT.anchorMin = Vector2.zero; ntLblRT.anchorMax = Vector2.one; ntLblRT.sizeDelta = Vector2.zero;
+            var ntTMP = AddTMP(ntLblGO, font, "!", 9f, TextAlignmentOptions.Center, muted: false, bold: true);
+            ntTMP.color = new Color(0.65f, 0.82f, 0.95f, 0.9f);
+
+            // Departs sort button (50/58px) — mirrors row DepText.
             var depGO  = new GameObject("D", typeof(RectTransform));
-            depGO.transform.SetParent(go.transform, false);
-            depGO.AddComponent<LayoutElement>().preferredWidth = depW;
-            var depImg = depGO.AddComponent<Image>(); depImg.color = Color.clear;
+            depGO.transform.SetParent(dcGO.transform, false);
+            depGO.AddComponent<LayoutElement>().preferredWidth = depTextW;
+            var depImg = depGO.AddComponent<Image>(); depImg.color = Color.clear; depImg.raycastTarget = true;
             var depBtn = depGO.AddComponent<Button>(); depBtn.targetGraphic = depImg;
             var depC   = depBtn.colors;
             depC.highlightedColor = new Color(1f, 1f, 1f, 0.12f);
@@ -404,14 +445,40 @@ namespace SolarExpanseLaunchWindows.UI
             var depLblRT = depLbl.GetComponent<RectTransform>();
             depLblRT.anchorMin = Vector2.zero; depLblRT.anchorMax = Vector2.one; depLblRT.sizeDelta = Vector2.zero;
             var depTMP = AddTMP(depLbl, font, "Departs", 9f, TextAlignmentOptions.Left, muted: true);
+            AddTooltip(depGO, "Departure date. Click column header to sort.");
 
-            MakeColLabel("V", go.transform, font, "Δv",     9f, dvW, TextAlignmentOptions.Left, muted: true);
-            MakeColLabel("T", go.transform, font, "Travel", 9f,  0f, TextAlignmentOptions.Left, muted: true, flex: true);
+            var dvTMP  = MakeColLabel("V", go.transform, font, "Δv",     9f, dvW, TextAlignmentOptions.Left, muted: true);
+            AddTooltip(dvTMP.gameObject, "Estimated fuel cost (km/s). Shown in red when it exceeds your craft's Δv budget.");
+            var tvlTMP = MakeColLabel("T", go.transform, font, "Travel", 9f,  0f, TextAlignmentOptions.Left, muted: true, flex: true);
+            AddTooltip(tvlTMP.gameObject, "Transfer travel time.");
 
             return (depBtn, depTMP);
         }
 
+        static void AddTooltip(GameObject go, string text)
+        {
+            if (go == null) return;
+            // Unity blocks adding Image to a GO that already has TextMeshProUGUI (both are Graphic).
+            // Use a full-stretch child overlay instead so raycasts still work.
+            GameObject target = go;
+            if (go.GetComponent<TextMeshProUGUI>() != null)
+            {
+                target = new GameObject("TTOverlay", typeof(RectTransform));
+                target.transform.SetParent(go.transform, false);
+                var rt = target.GetComponent<RectTransform>();
+                rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+                rt.sizeDelta = Vector2.zero; rt.anchoredPosition = Vector2.zero;
+            }
+            Image img = target.GetComponent<Image>();
+            if (img == null) img = target.AddComponent<Image>();
+            if (img == null) return;
+            img.color = Color.clear;
+            img.raycastTarget = true;
+            target.AddComponent<LWTooltipTrigger>().Text = text;
+        }
+
         // Fixed-width (or flex) column label (HLG child).
+        // Pure container: only LayoutElement on the GO so TMP's ILayoutElement never competes.
         static TextMeshProUGUI MakeColLabel(string name, Transform parent, TMP_FontAsset font,
                                              string text, float fontSize, float width,
                                              TextAlignmentOptions align,
@@ -419,11 +486,14 @@ namespace SolarExpanseLaunchWindows.UI
         {
             var go  = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
-            var tmp = AddTMP(go, font, text, fontSize, align, muted, bold);
             var le  = go.AddComponent<LayoutElement>();
             if (flex) le.flexibleWidth = 1f;
             else      le.preferredWidth = width;
-            return tmp;
+            var lbl = new GameObject("L", typeof(RectTransform));
+            lbl.transform.SetParent(go.transform, false);
+            var rt = lbl.GetComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.sizeDelta = Vector2.zero;
+            return AddTMP(lbl, font, text, fontSize, align, muted, bold);
         }
 
         // Label that fills its parent GO via full-stretch RT (used inside buttons/indicator).
@@ -555,6 +625,13 @@ namespace SolarExpanseLaunchWindows.UI
 
             return go;
         }
+
+        // Wrap LEManager.Get with an English fallback so missing keys never break injection.
+        static string Loc(string key, string fallback)
+        {
+            try   { return LEManager.Get(key, fallback) ?? fallback; }
+            catch { return fallback; }
+        }
     }
 
     // ── Always-active ticker + save/load provider ─────────────────────────────────────────────
@@ -574,6 +651,7 @@ namespace SolarExpanseLaunchWindows.UI
             try
             {
                 var lsm = UnityEngine.Object.FindObjectOfType<Manager.LoadSaveManager>();
+                Plugin.Log.LogInfo($"[LW] InjectIntoSaveGameData: LastSaveName='{lsm?.LastSaveName}'");
                 if (lsm != null && !string.IsNullOrEmpty(lsm.LastSaveName))
                     Panel?.SaveToSidecar(lsm.LastSaveName);
             }
@@ -586,6 +664,7 @@ namespace SolarExpanseLaunchWindows.UI
             try
             {
                 var lsm = UnityEngine.Object.FindObjectOfType<Manager.LoadSaveManager>();
+                Plugin.Log.LogInfo($"[LW] ExtractFromSaveGameData: LastSaveName='{lsm?.LastSaveName}'");
                 if (lsm != null && !string.IsNullOrEmpty(lsm.LastSaveName))
                     Panel?.LoadFromSidecar(lsm.LastSaveName);
             }
@@ -735,8 +814,8 @@ namespace SolarExpanseLaunchWindows.UI
             if (Bg) Bg.color = NormalColor;
             if (Vector2.Distance(e.position, _pressScreenPos) >= EventSystem.current.pixelDragThreshold) return;
             bool wasOpen = PanelGO != null && PanelGO.activeSelf;
-            if (!wasOpen) { PanelGO?.SetActive(true); RepositionPanel(); Panel?.ForceRefresh(); }
-            else          { Panel?.ClosePanel(); }
+            if (!wasOpen) { Plugin.Log.LogInfo("[LW] Panel open"); PanelGO?.SetActive(true); RepositionPanel(); Panel?.ForceRefresh(); }
+            else          { Plugin.Log.LogInfo("[LW] Panel close"); Panel?.ClosePanel(); }
         }
 
         public void OnBeginDrag(PointerEventData e)
@@ -757,6 +836,88 @@ namespace SolarExpanseLaunchWindows.UI
             Clamp();
             StoreNormalizedPos();
             RepositionPanel();
+        }
+    }
+
+    // ── Tooltip trigger ───────────────────────────────────────────────────────────────────────
+    internal class LWTooltipTrigger : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    {
+        internal string Text;
+        public void OnPointerEnter(PointerEventData e)
+        {
+            var canvas = GetComponentInParent<Canvas>();
+            if (canvas != null) LWTooltip.Show(Text, e.position, canvas);
+        }
+        public void OnPointerExit(PointerEventData e) => LWTooltip.Hide();
+        void OnDisable() => LWTooltip.Hide();
+    }
+
+    // ── Shared tooltip panel (created lazily, one instance per canvas) ────────────────────────
+    internal static class LWTooltip
+    {
+        static GameObject        _go;
+        static TextMeshProUGUI   _tmp;
+        static TMP_FontAsset     _font;
+
+        internal static TMP_FontAsset Font { set => _font = value; }
+
+        internal static void Show(string text, Vector2 screenPos, Canvas canvas)
+        {
+            if (canvas == null) return;
+            if (_go == null || _go.transform.parent != canvas.transform) Build(canvas);
+            if (_go == null) return;
+
+            _tmp.text = text;
+            _go.SetActive(true);
+            _go.transform.SetAsLastSibling();
+
+            var canvasRT = canvas.GetComponent<RectTransform>();
+            Camera cam = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+            Vector2 local;
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    canvasRT, screenPos, cam, out local))
+            {
+                _go.GetComponent<RectTransform>().anchoredPosition = local + new Vector2(12f, -12f);
+            }
+        }
+
+        internal static void Hide() { if (_go != null) _go.SetActive(false); }
+
+        static void Build(Canvas canvas)
+        {
+            if (_go != null) UnityEngine.Object.Destroy(_go);
+            _go = new GameObject("LWTooltip", typeof(RectTransform));
+            _go.transform.SetParent(canvas.transform, false);
+            _go.AddComponent<LayoutElement>().ignoreLayout = true;
+
+            var rt = _go.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot     = new Vector2(0f, 1f);
+
+            var bg = _go.AddComponent<Image>();
+            bg.color = new Color(0.08f, 0.10f, 0.13f, 0.97f);
+            bg.raycastTarget = false;
+
+            var vlg = _go.AddComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset(5, 5, 3, 3);
+            vlg.childControlHeight = true; vlg.childControlWidth = true;
+            vlg.childForceExpandHeight = false; vlg.childForceExpandWidth = true;
+
+            var csf = _go.AddComponent<ContentSizeFitter>();
+            csf.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            csf.verticalFit   = ContentSizeFitter.FitMode.PreferredSize;
+
+            var textGO = new GameObject("T", typeof(RectTransform));
+            textGO.transform.SetParent(_go.transform, false);
+            _tmp = textGO.AddComponent<TextMeshProUGUI>();
+            if (_font != null) _tmp.font = _font;
+            _tmp.fontSize           = 8f;
+            _tmp.color              = new Color(0.85f, 0.85f, 0.85f);
+            _tmp.enableWordWrapping = true;
+            _tmp.raycastTarget      = false;
+            textGO.AddComponent<LayoutElement>().preferredWidth = 180f;
+
+            _go.SetActive(false);
         }
     }
 }
