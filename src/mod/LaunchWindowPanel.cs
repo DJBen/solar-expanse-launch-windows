@@ -231,6 +231,7 @@ namespace SolarExpanseLaunchWindows
                     SetCraft(capName, capMaxDv, capCargo, capExhV, capDry, capFuel, capSolar);
                     HideCraftDropdown();
                     ClearAllRowData();
+                    _cacheByOrigin.Clear();
                     needsRefresh = true;
                 });
             }
@@ -835,10 +836,12 @@ namespace SolarExpanseLaunchWindows
             {
                 var results     = new Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>();
                 var resultsLock = new object();
+                var parallelOpts = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 2) };
 
                 // Full recalcs: two FindWindows calls (opt1 + opt2).
                 Parallel.ForEach<string, WindowFinder>(
                     toCalcFull,
+                    parallelOpts,
                     () => new WindowFinder(new GameLambertSolver(), ephemSnap, dvToKmSSnap),
                     (dId, _, localFinder) =>
                     {
@@ -868,17 +871,18 @@ namespace SolarExpanseLaunchWindows
                 // Partial recalcs: opt1 already known (promoted from opt2); one scan for new opt2.
                 Parallel.ForEach<(string dId, LaunchWindow opt1, LaunchWindow? fst1), WindowFinder>(
                     toCalcPartial,
+                    parallelOpts,
                     () => new WindowFinder(new GameLambertSolver(), ephemSnap, dvToKmSSnap),
                     (item, _, localFinder) =>
                     {
                         try
                         {
                             double syn = localFinder.GetSynodic(originId, item.dId);
-                            // Back off 30 days so we don't clip the leading edge of the window if
-                            // opt1 landed near the tail of the previous window.
-                            double thirtyDays = ephemSnap.GetPeriod(originId) / 12.0;
+                            // Back off by 1/12 of the origin's period so we don't clip the leading
+                            // edge of the window if opt1 landed near the tail of the previous one.
+                            double bufferPhys = ephemSnap.GetPeriod(originId) / 12.0;
                             double startTime  = syn > 0
-                                ? item.opt1.DepartureEpoch + syn - thirtyDays
+                                ? item.opt1.DepartureEpoch + syn - bufferPhys
                                 : item.opt1.DepartureEpoch;
                             var (o2, f2, _) = localFinder.FindWindows(originId, item.dId, startTime, dvCap);
                             lock (resultsLock) { results[item.dId] = (item.opt1, item.fst1, o2, f2); }
@@ -896,6 +900,7 @@ namespace SolarExpanseLaunchWindows
                 // Fst-only partial recalcs: opt1/opt2 valid but fst1 stale — find fresh fst windows.
                 Parallel.ForEach<(string dId, LaunchWindow opt1, LaunchWindow? opt2), WindowFinder>(
                     toCalcFstPartial,
+                    parallelOpts,
                     () => new WindowFinder(new GameLambertSolver(), ephemSnap, dvToKmSSnap),
                     (item, loopState, localFinder) =>
                     {
@@ -1827,6 +1832,26 @@ namespace SolarExpanseLaunchWindows
             foreach (var id in needsOpt2) _needsOpt2Recalc.Add(id);
             foreach (var id in needsFst)  _needsFstRecalc.Add(id);
 
+            // Restore other origins' caches without promotion; DoRefresh() handles staleness
+            // when the origin is switched to.
+            _cacheByOrigin.Clear();
+            foreach (var oc in _sidecarData.originCaches ?? new List<LWOriginCacheSave>())
+            {
+                if (string.IsNullOrEmpty(oc.originId)) continue;
+                var restored = new Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>();
+                foreach (var e in oc.cache ?? new List<LWDestCacheSave>())
+                {
+                    if (string.IsNullOrEmpty(e.destId) || !allIds.Contains(e.destId)) continue;
+                    restored[e.destId] = (
+                        e.opt1 != null ? (LaunchWindow?)LWSaveConvert.FromSave(e.opt1) : null,
+                        e.fst1 != null ? (LaunchWindow?)LWSaveConvert.FromSave(e.fst1) : null,
+                        e.opt2 != null ? (LaunchWindow?)LWSaveConvert.FromSave(e.opt2) : null,
+                        e.fst2 != null ? (LaunchWindow?)LWSaveConvert.FromSave(e.fst2) : null
+                    );
+                }
+                if (restored.Count > 0) _cacheByOrigin[oc.originId] = restored;
+            }
+
             needsRefresh = true;
         }
 
@@ -1871,6 +1896,23 @@ namespace SolarExpanseLaunchWindows
                         fst2   = kv.Value.fst2.HasValue ? LWSaveConvert.ToSave(kv.Value.fst2.Value) : null,
                     });
 
+                // Persist all other origins' caches so switching back doesn't force a full recalc.
+                var originCachesList = new List<LWOriginCacheSave>();
+                foreach (var oc in _cacheByOrigin)
+                {
+                    var ocList = new List<LWDestCacheSave>();
+                    foreach (var dc in oc.Value)
+                        ocList.Add(new LWDestCacheSave
+                        {
+                            destId = dc.Key,
+                            opt1   = dc.Value.opt1.HasValue ? LWSaveConvert.ToSave(dc.Value.opt1.Value) : null,
+                            fst1   = dc.Value.fst1.HasValue ? LWSaveConvert.ToSave(dc.Value.fst1.Value) : null,
+                            opt2   = dc.Value.opt2.HasValue ? LWSaveConvert.ToSave(dc.Value.opt2.Value) : null,
+                            fst2   = dc.Value.fst2.HasValue ? LWSaveConvert.ToSave(dc.Value.fst2.Value) : null,
+                        });
+                    originCachesList.Add(new LWOriginCacheSave { originId = oc.Key, cache = ocList });
+                }
+
                 var data = new LWSaveData
                 {
                     originId          = OriginId ?? "",
@@ -1879,6 +1921,7 @@ namespace SolarExpanseLaunchWindows
                     originDests       = originDestsList,
                     alarms            = alarmsList,
                     windowCache       = cacheList,
+                    originCaches      = originCachesList,
                 };
                 string path = SidecarPath(saveName);
                 Directory.CreateDirectory(Path.GetDirectoryName(path));

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Run the unit test suite (no game install required)"
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "$script_dir/.." && pwd)"
+
+dotnet test "$repo_root/src/tests" --nologo --verbosity quiet

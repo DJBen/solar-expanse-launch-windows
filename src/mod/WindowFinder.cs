@@ -71,8 +71,7 @@ namespace SolarExpanseLaunchWindows
                 arrStates[k] = ephem.GetState(destId, arrStart + k * arrStep);
 
             // Game's DataGridToValueToSort3 (deltaVPickerButtonOptimalRoundResult=0.9 from Economic.asset):
-            // score = rawDv if |bestOptJ-j|<5, else rawDv/0.9. bestRawDv stores raw dv (not score).
-            double bestRawDv  = double.MaxValue;
+            // score = dv if |bestOptJ-j|<5 (close); else dv/0.9 (far candidates need 10% margin to displace).
             double bestDv     = double.MaxValue;
             double bestDepOpt = 0, bestArrOpt = 0;
             int    bestOptJ   = 0;
@@ -103,9 +102,8 @@ namespace SolarExpanseLaunchWindows
 
                     // Optimal: game's DataGridToValueToSort3 (deltaVPickerButtonOptimalRoundResult=0.9)
                     double score3 = (Math.Abs(bestOptJ - j) < 5) ? dv : dv / 0.9;
-                    if (score3 < bestRawDv)
+                    if (score3 < bestDv)
                     {
-                        bestRawDv  = dv;
                         bestDv     = dv;
                         bestDepOpt = tDep;
                         bestArrOpt = tArr;

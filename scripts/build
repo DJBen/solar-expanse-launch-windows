@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Build SolarExpanseLaunchWindows.dll (Release). Requires the game installed locally.
-# Override game path with SOLAR_EXPANSE_GAME=<path>.
+#MISE description="Build SolarExpanseLaunchWindows.dll and install to game (requires SOLAR_EXPANSE_ROOT)"
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/.." && pwd)"
 
-DEFAULT_GAME="$HOME/Applications/Sikarugir/Steam Wine.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Solar Expanse"
-GAME="${SOLAR_EXPANSE_GAME:-$DEFAULT_GAME}"
+configuration="${CONFIGURATION:-Release}"
 
-dotnet build "$repo_root/src/mod" -c Release --nologo --verbosity quiet \
-    -p:SolarExpanseInstall="$GAME"
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "error: dotnet is required. Run: mise install" >&2
+  exit 1
+fi
+
+dotnet build "$repo_root/src/mod" -c "$configuration" --nologo --verbosity quiet
