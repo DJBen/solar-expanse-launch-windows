@@ -97,6 +97,8 @@ namespace SolarExpanseLaunchWindows
         private readonly HashSet<AlarmKey> _firedAlarms = new HashSet<AlarmKey>();
         private readonly HashSet<string>  _needsOpt2Recalc = new HashSet<string>();
         private readonly HashSet<string>  _needsFstRecalc  = new HashSet<string>();
+        private readonly Dictionary<string, HashSet<string>> _needsOpt2ByOrigin = new Dictionary<string, HashSet<string>>();
+        private readonly Dictionary<string, HashSet<string>> _needsFstByOrigin  = new Dictionary<string, HashSet<string>>();
         internal IGameClock _clock = new GameClock();
 
         // Per-row checkbox buttons: [0]=opt1, [1]=opt2, [2]=fst1, [3]=fst2
@@ -232,6 +234,8 @@ namespace SolarExpanseLaunchWindows
                     HideCraftDropdown();
                     ClearAllRowData();
                     _cacheByOrigin.Clear();
+                    _needsOpt2ByOrigin.Clear();
+                    _needsFstByOrigin.Clear();
                     needsRefresh = true;
                 });
             }
@@ -271,10 +275,20 @@ namespace SolarExpanseLaunchWindows
                     HideOriginDropdown();
                     // Save old origin's cache, then restore the new origin's cache (avoids recalc on switch-back).
                     if (prevOriginId != null)
+                    {
                         _cacheByOrigin[prevOriginId] = new Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>(cache);
+                        _needsOpt2ByOrigin[prevOriginId] = new HashSet<string>(_needsOpt2Recalc);
+                        _needsFstByOrigin[prevOriginId]  = new HashSet<string>(_needsFstRecalc);
+                    }
                     ClearAllRowData();
+                    _needsOpt2Recalc.Clear();
+                    _needsFstRecalc.Clear();
                     if (_cacheByOrigin.TryGetValue(OriginId ?? "", out var saved))
+                    {
                         foreach (var kv in saved) cache[kv.Key] = kv.Value;
+                        if (_needsOpt2ByOrigin.TryGetValue(OriginId ?? "", out var o2saved)) foreach (var id in o2saved) _needsOpt2Recalc.Add(id);
+                        if (_needsFstByOrigin.TryGetValue(OriginId ?? "", out var fssaved))  foreach (var id in fssaved) _needsFstRecalc.Add(id);
+                    }
                     if (DestIds.Count == 0 && ephem != null)
                     {
                         // Pick the first non-origin planet from a sensible fallback list.
@@ -1817,6 +1831,7 @@ namespace SolarExpanseLaunchWindows
                     _destsByOrigin[v1Origin] = _sidecarData.destIds
                         .Where(id => allIds.Contains(id)).ToList();
             }
+            _firedAlarms.Clear();
             _alarms.Clear();
             foreach (var a in _sidecarData.alarms ?? new List<LWAlarmSave>())
                 _alarms.Add(new AlarmKey { OriginId = a.originId, DestId = a.destId, Year = a.year, Month = a.month, IsFastest = a.isFastest });
@@ -1832,24 +1847,19 @@ namespace SolarExpanseLaunchWindows
             foreach (var id in needsOpt2) _needsOpt2Recalc.Add(id);
             foreach (var id in needsFst)  _needsFstRecalc.Add(id);
 
-            // Restore other origins' caches without promotion; DoRefresh() handles staleness
-            // when the origin is switched to.
             _cacheByOrigin.Clear();
+            _needsOpt2ByOrigin.Clear();
+            _needsFstByOrigin.Clear();
             foreach (var oc in _sidecarData.originCaches ?? new List<LWOriginCacheSave>())
             {
                 if (string.IsNullOrEmpty(oc.originId)) continue;
-                var restored = new Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>();
-                foreach (var e in oc.cache ?? new List<LWDestCacheSave>())
+                var (prom, o2set, fsset) = LWCacheHelper.PromoteWindowCache(oc.cache, allIds, physNow2);
+                if (prom.Count > 0)
                 {
-                    if (string.IsNullOrEmpty(e.destId) || !allIds.Contains(e.destId)) continue;
-                    restored[e.destId] = (
-                        e.opt1 != null ? (LaunchWindow?)LWSaveConvert.FromSave(e.opt1) : null,
-                        e.fst1 != null ? (LaunchWindow?)LWSaveConvert.FromSave(e.fst1) : null,
-                        e.opt2 != null ? (LaunchWindow?)LWSaveConvert.FromSave(e.opt2) : null,
-                        e.fst2 != null ? (LaunchWindow?)LWSaveConvert.FromSave(e.fst2) : null
-                    );
+                    _cacheByOrigin[oc.originId] = prom;
+                    if (o2set.Count > 0) _needsOpt2ByOrigin[oc.originId] = o2set;
+                    if (fsset.Count > 0) _needsFstByOrigin[oc.originId]  = fsset;
                 }
-                if (restored.Count > 0) _cacheByOrigin[oc.originId] = restored;
             }
 
             needsRefresh = true;

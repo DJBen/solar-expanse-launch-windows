@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-06-18
+### Fixed
+- `_firedAlarms` set is now cleared on sidecar load, preventing unbounded growth across a long session.
+- Per-origin window caches restored from the sidecar now go through the same opt2/fst promotion logic as the active origin; previously a restored non-active origin that had been promoted at save-time would never compute its second window after being switched to.
+- Pending opt2/fst recalc sets are now saved and restored when switching origins, so a partial recalc in-flight when the user switches away is correctly resumed on switch-back.
+
 ## [1.2.1] - 2026-06-18
 ### Fixed
 - Craft change now clears cached fastest windows for all origins, not just the active one; previously switching craft then switching away and back to an origin could show fastest windows computed with the old craft's dV budget.
