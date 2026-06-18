@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-06-18
+### Fixed
+- Craft change now clears cached fastest windows for all origins, not just the active one; previously switching craft then switching away and back to an origin could show fastest windows computed with the old craft's dV budget.
+- Per-origin window caches are now persisted to the sidecar file and restored on load, so switching origins after a reload no longer forces a full recalculation.
+- Background Lambert grid calculations now cap thread usage at ProcessorCount−2, leaving headroom for the game's render thread.
+
+### Changed
+- Build system aligned with FleetTracker: uses `SOLAR_EXPANSE_ROOT` environment variable (set via `.mise.toml`); csproj validates the path and auto-copies the DLL after build. `SOLAR_EXPANSE_GAME` is still accepted as a legacy alias.
+- Added `mise run test` task (`scripts/test`) for running the unit suite without a game install.
+- Save format bumped to version 3 (backwards compatible; old saves load without data loss).
+
 ## [1.2.0] - 2026-06-17
 ### Added
 - **Launch window alarms** — checkbox on each window row fires a real game notification when the departure window arrives, pausing the game. Notification shows origin and destination planet icons with highlighted names.
