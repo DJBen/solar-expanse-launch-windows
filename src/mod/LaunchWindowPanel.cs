@@ -1902,14 +1902,18 @@ namespace SolarExpanseLaunchWindows
                 {
                     var ocList = new List<LWDestCacheSave>();
                     foreach (var dc in oc.Value)
+                    {
+                        // _cacheByOrigin uses unnamed tuple elements — access positionally.
+                        var (o1, f1, o2, f2) = dc.Value;
                         ocList.Add(new LWDestCacheSave
                         {
                             destId = dc.Key,
-                            opt1   = dc.Value.opt1.HasValue ? LWSaveConvert.ToSave(dc.Value.opt1.Value) : null,
-                            fst1   = dc.Value.fst1.HasValue ? LWSaveConvert.ToSave(dc.Value.fst1.Value) : null,
-                            opt2   = dc.Value.opt2.HasValue ? LWSaveConvert.ToSave(dc.Value.opt2.Value) : null,
-                            fst2   = dc.Value.fst2.HasValue ? LWSaveConvert.ToSave(dc.Value.fst2.Value) : null,
+                            opt1   = o1.HasValue ? LWSaveConvert.ToSave(o1.Value) : null,
+                            fst1   = f1.HasValue ? LWSaveConvert.ToSave(f1.Value) : null,
+                            opt2   = o2.HasValue ? LWSaveConvert.ToSave(o2.Value) : null,
+                            fst2   = f2.HasValue ? LWSaveConvert.ToSave(f2.Value) : null,
                         });
+                    }
                     originCachesList.Add(new LWOriginCacheSave { originId = oc.Key, cache = ocList });
                 }
 
