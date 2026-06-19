@@ -7,8 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.2.3] - 2026-06-18
 ### Fixed
-- Second-window row (dimmed) Fastest checkboxes were shifted ~7px left of the primary row due to missing 255px group containers; both rows now use identical layout structure so checkboxes align correctly.
-- Unchecked checkbox background is now transparent instead of a hazy dark square.
+- Fastest checkboxes in the second window row were misaligned with the first row.
+- Unchecked checkboxes no longer show a hazy background box.
 
 ## [1.2.2] - 2026-06-18
 ### Fixed
