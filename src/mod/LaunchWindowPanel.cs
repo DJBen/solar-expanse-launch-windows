@@ -1222,9 +1222,17 @@ namespace SolarExpanseLaunchWindows
             ns.AddComponent<LayoutElement>().preferredWidth = 105f;
 
             Color dimC = new Color(0.50f, 0.50f, 0.50f);
+            // Row-2 opt group: 255px container mirrors row1's oGroup so flex tvl consumes same width.
+            var noOGroup = new GameObject("OptCol2", typeof(RectTransform));
+            noOGroup.transform.SetParent(inner2.transform, false);
+            noOGroup.AddComponent<LayoutElement>().preferredWidth = 255f;
+            var noOHlg = noOGroup.AddComponent<HorizontalLayoutGroup>();
+            noOHlg.childControlHeight = true; noOHlg.childControlWidth = true;
+            noOHlg.childForceExpandHeight = true; noOHlg.childForceExpandWidth = false;
+            noOHlg.spacing = 0f;
             // Row-2 opt2 dep cell: checkbox + text within OPT_DEP_W
             var noD2Cell = new GameObject("DepC2", typeof(RectTransform));
-            noD2Cell.transform.SetParent(inner2.transform, false);
+            noD2Cell.transform.SetParent(noOGroup.transform, false);
             noD2Cell.AddComponent<LayoutElement>().preferredWidth = OPT_DEP_W;
             var noD2Hlg = noD2Cell.AddComponent<HorizontalLayoutGroup>();
             noD2Hlg.childControlHeight = true; noD2Hlg.childControlWidth = true;
@@ -1232,13 +1240,21 @@ namespace SolarExpanseLaunchWindows
             noD2Hlg.spacing = 0f;
             var cb2 = MakeCheckboxButton(noD2Cell.transform, forRow2: true);
             var noD  = MakeColLabel(noD2Cell.transform, "—", 9f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W, dimC);
-            var noDv = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
-            var noTvl = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
+            var noDv = MakeColLabel(noOGroup.transform, "—", 9f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
+            var noTvl = MakeColLabel(noOGroup.transform, "—", 9f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
             var sep2 = new GameObject("Sep2", typeof(RectTransform));
             sep2.transform.SetParent(inner2.transform, false);
             sep2.AddComponent<LayoutElement>().preferredWidth = 8f;
+            // Row-2 fst group: 255px container mirrors row1's fGroup so Fastest checkbox lands at same x.
+            var noFGroup = new GameObject("FstCol2", typeof(RectTransform));
+            noFGroup.transform.SetParent(inner2.transform, false);
+            noFGroup.AddComponent<LayoutElement>().preferredWidth = 255f;
+            var noFHlg = noFGroup.AddComponent<HorizontalLayoutGroup>();
+            noFHlg.childControlHeight = true; noFHlg.childControlWidth = true;
+            noFHlg.childForceExpandHeight = true; noFHlg.childForceExpandWidth = false;
+            noFHlg.spacing = 0f;
             var nfDCell = new GameObject("FDepC2", typeof(RectTransform));
-            nfDCell.transform.SetParent(inner2.transform, false);
+            nfDCell.transform.SetParent(noFGroup.transform, false);
             nfDCell.AddComponent<LayoutElement>().preferredWidth = FST_DEP_W;
             var nfDHlg = nfDCell.AddComponent<HorizontalLayoutGroup>();
             nfDHlg.childControlHeight = true; nfDHlg.childControlWidth = true;
@@ -1246,8 +1262,8 @@ namespace SolarExpanseLaunchWindows
             nfDHlg.spacing = 0f;
             var fstCb2 = MakeCheckboxButton(nfDCell.transform, forRow2: true);
             var nfD   = MakeColLabel(nfDCell.transform, "—", 9f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
-            var nfDv  = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
-            var nfTvl = MakeColLabel(inner2.transform, "—", 9f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
+            var nfDv  = MakeColLabel(noFGroup.transform, "—", 9f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
+            var nfTvl = MakeColLabel(noFGroup.transform, "—", 9f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
 
             // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
             // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
@@ -1642,7 +1658,7 @@ namespace SolarExpanseLaunchWindows
 
         // ── Checkbox helpers ──────────────────────────────────────────────────────
 
-        private static readonly Color CbUncheckedBg = new Color(0.15f, 0.17f, 0.20f, 0.6f);
+        private static readonly Color CbUncheckedBg = Color.clear;
         private static readonly Color CbCheckedBg   = new Color(0.05f, 0.55f, 0.62f, 0.85f);
         private static readonly Color CbUncheckedFg = new Color(0.4f, 0.4f, 0.4f);
         private static readonly Color CbCheckedFg   = Color.white;
