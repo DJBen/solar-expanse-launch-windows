@@ -85,6 +85,7 @@ namespace SolarExpanseLaunchWindows
         private bool  needsRefresh;
         private bool  refreshing;
         private bool  originDropOpen;
+        private HashSet<string> _originShipBodies;
 
         private volatile bool _calcDone;
         private Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)> _pendingCache;
@@ -113,6 +114,8 @@ namespace SolarExpanseLaunchWindows
         private bool       _sidecarApplied;
         private LWSaveData _sidecarData;
         private float      _ephemReadyTime = -1f;
+        private bool       _sidecarDirty;
+        private float      _lastAutoSaveTime;
 
         private string OriginId => originIds.Count > 0 ? originIds[originIndex % originIds.Count] : null;
 
@@ -130,6 +133,7 @@ namespace SolarExpanseLaunchWindows
         {
             TryBuildEphem();
             TryApplySidecarData();
+            MaybeAutoSaveSidecar();
             CheckAlarms();
             if (!gameObject.activeSelf) return;
             if (_calcDone)
@@ -171,6 +175,7 @@ namespace SolarExpanseLaunchWindows
         {
             if (OriginDropGO == null) return;
             if (OriginFilterInput != null) OriginFilterInput.SetTextWithoutNotify("");
+            _originShipBodies = GetBodiesWithPlayerShips();
             PopulateOriginDropdown("");
             PositionDropdownBelow(OriginDropGO, OriginBtn?.GetComponent<RectTransform>(), below: true);
             OriginDropGO.SetActive(true);
@@ -230,6 +235,7 @@ namespace SolarExpanseLaunchWindows
                     : $"{capName}  ({capMaxDv:F0} km/s)";
                 AddDropdownItem(content, label, isSel, () => {
                     _craftManuallySelected = true;
+                    _sidecarDirty = true;
                     SetCraft(capName, capMaxDv, capCargo, capExhV, capDry, capFuel, capSolar);
                     HideCraftDropdown();
                     ClearAllRowData();
@@ -257,11 +263,14 @@ namespace SolarExpanseLaunchWindows
             for (int i = content.childCount - 1; i >= 0; i--)
                 UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
 
-            var items = originIds
+            var ships = _originShipBodies ?? new HashSet<string>();
+            var filtered = originIds
                 .Select(id => (id, label: ephem.GetDisplayName(id)))
                 .Where(x => string.IsNullOrEmpty(filter) ||
-                            x.label.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
-                .OrderBy(x => x.label, StringComparer.OrdinalIgnoreCase);
+                            x.label.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0);
+            // Tier 1: bodies with player ships; Tier 2: everything else. Alphabetized within each.
+            var items = filtered.Where(x =>  ships.Contains(x.id)).OrderBy(x => x.label, StringComparer.OrdinalIgnoreCase)
+                .Concat(filtered.Where(x => !ships.Contains(x.id)).OrderBy(x => x.label, StringComparer.OrdinalIgnoreCase));
 
             foreach (var (id, label) in items)
             {
@@ -297,7 +306,7 @@ namespace SolarExpanseLaunchWindows
                             var fid = ephem.AllBodyIds.FirstOrDefault(bid =>
                                 string.Equals(ephem.GetDisplayName(bid), fallback, StringComparison.OrdinalIgnoreCase));
                             if (fid != null && fid != OriginId && !DestIds.Contains(fid))
-                            { DestIds.Add(fid); break; }
+                            { DestIds.Add(fid); _sidecarDirty = true; break; }
                         }
                     }
                     needsRefresh = true;
@@ -338,6 +347,7 @@ namespace SolarExpanseLaunchWindows
                     {
                         Plugin.Log.LogInfo($"[LW] AddDest: {ephem?.GetDisplayName(captured) ?? captured}");
                         DestIds.Add(captured);
+                        _sidecarDirty = true;
                         needsRefresh = true;
                     }
                     // SetTextWithoutNotify avoids firing onValueChanged (which would lose focus).
@@ -676,6 +686,50 @@ namespace SolarExpanseLaunchWindows
             }
         }
 
+        // Returns ephem body IDs that have at least one player spacecraft in their vicinity.
+        // Uses Spacecraft.CurrentlyOnThisObject → walks up ParentObjectInfo until hitting a body in ephem.
+        private HashSet<string> GetBodiesWithPlayerShips()
+        {
+            try
+            {
+                const BindingFlags bf = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                var asm = AppDomain.CurrentDomain.GetAssemblies()
+                    .FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
+                if (asm == null || ephem == null) return new HashSet<string>();
+                var smType = asm.GetType("ShipManager");
+                if (smType == null) return new HashSet<string>();
+                var sm = UnityEngine.Object.FindObjectOfType(smType);
+                if (sm == null) return new HashSet<string>();
+                var listAll = smType.GetProperty("ListAllSpaceShip", bf)?.GetValue(sm) as IEnumerable;
+                if (listAll == null) return new HashSet<string>();
+
+                var result = new HashSet<string>();
+                foreach (var sc in listAll)
+                {
+                    // Walk: CurrentlyOnThisObject → parent → grandparent, stopping at first ephem hit.
+                    var locOI = sc.GetType().GetProperty("CurrentlyOnThisObject", bf)?.GetValue(sc);
+                    for (var oi = locOI; oi != null; )
+                    {
+                        var oiType = oi.GetType();
+                        var nb = oiType.GetField("nBody", bf)?.GetValue(oi) as NBody;
+                        if (nb != null)
+                        {
+                            string id = nb.GetInstanceID().ToString();
+                            if (ephem.AllBodyIds.Contains(id)) { result.Add(id); break; }
+                        }
+                        oi = oiType.GetProperty("ParentObjectInfo", bf)?.GetValue(oi)
+                          ?? oiType.GetField("parentObjectInfo",    bf)?.GetValue(oi);
+                    }
+                }
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning($"[LW] GetBodiesWithPlayerShips: {ex.Message}");
+                return new HashSet<string>();
+            }
+        }
+
         internal void AddPresenceBodies()
         {
             TryBuildEphem();
@@ -696,6 +750,7 @@ namespace SolarExpanseLaunchWindows
                 if (presenceIds.Contains(bodyId))
                 {
                     DestIds.Add(bodyId);
+                    _sidecarDirty = true;
                     added++;
                 }
             }
@@ -1300,6 +1355,7 @@ namespace SolarExpanseLaunchWindows
         {
             string name = ephem?.GetDisplayName(dId) ?? dId;
             DestIds.Remove(dId);
+            _sidecarDirty = true;
             cache.Remove(dId);
             rowTMPs.Remove(dId);
             rowNameTMPs.Remove(dId);
@@ -1423,6 +1479,7 @@ namespace SolarExpanseLaunchWindows
             foreach (var key in toFire)
             {
                 _alarms.Remove(key);
+                _sidecarDirty = true;
                 _firedAlarms.Add(key);
                 FireAlarm(key);
             }
@@ -1702,6 +1759,7 @@ namespace SolarExpanseLaunchWindows
 
             var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, IsFastest = isFastest };
             if (!_alarms.Remove(key)) _alarms.Add(key);
+            _sidecarDirty = true;
             bool armed = _alarms.Contains(key);
             Plugin.Log.LogInfo($"[LW] ToggleAlarm '{dest}': armed={armed} row2={isRow2} fast={isFastest}");
             int idx = (!isFastest ? 0 : 2) + (isRow2 ? 1 : 0);
@@ -1897,6 +1955,21 @@ namespace SolarExpanseLaunchWindows
                 else Plugin.Log.LogInfo($"[LW] No sidecar for '{saveName}', using defaults");
             }
             catch (Exception ex) { Plugin.Log.LogWarning($"[LW] LoadFromSidecar: {ex.Message}"); }
+        }
+
+        private void MaybeAutoSaveSidecar()
+        {
+            if (!_sidecarDirty || !_sidecarApplied) return;
+            if (Time.realtimeSinceStartup - _lastAutoSaveTime < 2f) return;
+            _sidecarDirty = false;
+            _lastAutoSaveTime = Time.realtimeSinceStartup;
+            try
+            {
+                var lsm = UnityEngine.Object.FindObjectOfType<Manager.LoadSaveManager>();
+                if (lsm != null && !string.IsNullOrEmpty(lsm.LastSaveName))
+                    SaveToSidecar(lsm.LastSaveName);
+            }
+            catch (Exception ex) { Plugin.Log.LogWarning($"[LW] auto-save sidecar: {ex.Message}"); }
         }
 
         internal void SaveToSidecar(string saveName)

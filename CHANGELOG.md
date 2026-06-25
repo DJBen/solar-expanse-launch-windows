@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-06-24
+### Fixed
+- Origin dropdown now shows planets where you have ships first, then everything else. Both groups alphabetized.
+- Destinations are now saved to the sidecar file continuously as you make changes, not only on game save. Fixes destinations disappearing after switching origins or reloading.
+
 ## [1.2.3] - 2026-06-18
 ### Fixed
 - Fastest checkboxes in the second window row were misaligned with the first row.
