@@ -5,8 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.2.5] - 2026-06-27
+### Changed
+- Origin dropdown sort is now three-tier: presence → planet/non-planet → alphabetical.
+
 ## [1.2.4] - 2026-06-24
-### Fixed
+### Added
 - Origin dropdown now shows planets where you have ships first, then everything else. Both groups alphabetized.
 - Destinations are now saved to the sidecar file continuously as you make changes, not only on game save. Fixes destinations disappearing after switching origins or reloading.
 

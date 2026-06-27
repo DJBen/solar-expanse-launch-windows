@@ -268,9 +268,10 @@ namespace SolarExpanseLaunchWindows
                 .Select(id => (id, label: ephem.GetDisplayName(id)))
                 .Where(x => string.IsNullOrEmpty(filter) ||
                             x.label.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0);
-            // Tier 1: bodies with player ships; Tier 2: everything else. Alphabetized within each.
-            var items = filtered.Where(x =>  ships.Contains(x.id)).OrderBy(x => x.label, StringComparer.OrdinalIgnoreCase)
-                .Concat(filtered.Where(x => !ships.Contains(x.id)).OrderBy(x => x.label, StringComparer.OrdinalIgnoreCase));
+            // Tier 1: presence; Tier 2: planet (0) vs non-planet (1); Tier 3: alphabetical.
+            var items = filtered.OrderBy(x => ships.Contains(x.id) ? 0 : 1)
+                                .ThenBy(x => ephem.IsPlanet(x.id) ? 0 : 1)
+                                .ThenBy(x => x.label, StringComparer.OrdinalIgnoreCase);
 
             foreach (var (id, label) in items)
             {

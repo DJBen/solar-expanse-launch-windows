@@ -10,6 +10,7 @@ namespace SolarExpanseLaunchWindows
         IEnumerable<string> AllBodyIds { get; }
         IEnumerable<string> ValidBodyIds { get; }
         string GetDisplayName(string bodyId);
+        bool IsPlanet(string bodyId);
         void SnapshotPropagators();
         List<string> GetSortedOriginIds();
     }
