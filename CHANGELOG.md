@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.2.6] - 2026-07-03
+### Fixed
+- Clicking a body name in the launch window panel now correctly opens the body's detail panel. Previously used a reflection-based method that broke after a game update.
+
 ## [1.2.5] - 2026-06-27
 ### Changed
 - Origin dropdown sort is now three-tier: presence → planet/non-planet → alphabetical.

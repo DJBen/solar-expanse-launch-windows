@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Data;
+using Game.UI;
 using Manager;
 using TMPro;
 using UnityEngine;
@@ -1168,16 +1169,8 @@ namespace SolarExpanseLaunchWindows
             {
                 nameBtn.onClick.AddListener(() =>
                 {
-                    const BindingFlags bfo = BindingFlags.Instance | BindingFlags.Public;
-                    var m = capOI.GetType().GetMethods(bfo)
-                        .FirstOrDefault(mm => mm.Name == "MyOnMouseUpAsButton2");
-                    if (m != null)
-                    {
-                        var ps   = m.GetParameters();
-                        var args = new object[ps.Length];
-                        for (int pi = 0; pi < ps.Length; pi++) args[pi] = ps[pi].DefaultValue;
-                        m.Invoke(capOI, args);
-                    }
+                    try { UIManager.Instance.Open(EWindowType.ObjectInfo, capOI); }
+                    catch (Exception ex) { Plugin.Log.LogWarning($"[LW] body click: {ex.Message}"); }
                 });
             }
             var nameLblGO = new GameObject("L", typeof(RectTransform));
@@ -1536,15 +1529,8 @@ namespace SolarExpanseLaunchWindows
                     var capOI = (object)destOI;
                     onClick = () =>
                     {
-                        var m = capOI.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
-                            .FirstOrDefault(mm => mm.Name == "MyOnMouseUpAsButton2");
-                        if (m != null)
-                        {
-                            var ps   = m.GetParameters();
-                            var args = new object[ps.Length];
-                            for (int i = 0; i < ps.Length; i++) args[i] = ps[i].DefaultValue;
-                            m.Invoke(capOI, args);
-                        }
+                        try { UIManager.Instance.Open(EWindowType.ObjectInfo, (Game.Info.InfoBase)capOI); }
+                        catch (Exception ex) { Plugin.Log.LogWarning($"[LW] body click: {ex.Message}"); }
                     };
                 }
 
