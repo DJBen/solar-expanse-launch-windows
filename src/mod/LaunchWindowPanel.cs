@@ -1217,14 +1217,17 @@ namespace SolarExpanseLaunchWindows
         }
 
         // Sub-column widths — must match injector sub-header widths exactly.
-        // Optimal: dep=108 (cb 18 + text 90), dv=95, tvl=flex, fuel=75 (within 458px group)
-        // Fastest: dep=120, dv=110, tvl=flex, fuel=75 (within 458px group; row1 group is 437 + 21px trailing ×)
+        // All fixed so both rows align: Optimal group = 108+95+90+75 = 368px;
+        // Fastest group = 120+110+90+75 = 395px (+ 21px trailing × on row 1 only).
         private const float CB_W       = 18f;
         private const float OPT_DEP_W  = 108f;
         private const float OPT_DV_W   = 95f;
         private const float FST_DEP_W  = 120f;
         private const float FST_DV_W   = 110f;
+        private const float TVL_W      = 90f;
         private const float FUEL_W     = 75f;
+        private const float OPT_GRP_W  = OPT_DEP_W + OPT_DV_W + TVL_W + FUEL_W; // 368
+        private const float FST_GRP_W  = FST_DEP_W + FST_DV_W + TVL_W + FUEL_W; // 395
 
         private void CreateRow(string dId)
         {
@@ -1323,7 +1326,7 @@ namespace SolarExpanseLaunchWindows
             // Optimal group: [cb+dep | dv | tvl]  |gap|  Fastest: [dep | dv | tvl]
             var oGroup = new GameObject("OptCol", typeof(RectTransform));
             oGroup.transform.SetParent(inner.transform, false);
-            oGroup.AddComponent<LayoutElement>().preferredWidth = 458f;
+            oGroup.AddComponent<LayoutElement>().preferredWidth = OPT_GRP_W;
             var oHlg = oGroup.AddComponent<HorizontalLayoutGroup>();
             oHlg.childControlHeight = true; oHlg.childControlWidth = true;
             oHlg.childForceExpandHeight = true; oHlg.childForceExpandWidth = false;
@@ -1339,7 +1342,7 @@ namespace SolarExpanseLaunchWindows
             var cb1 = MakeCheckboxButton(oDCell.transform);
             var oD  = MakeColLabel(oDCell.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
             var oDv  = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W);
-            var oTvl = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, flex: true);
+            var oTvl = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, TVL_W);
             var oFu  = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W);
             var sep1 = new GameObject("Sep", typeof(RectTransform));
             sep1.transform.SetParent(inner.transform, false);
@@ -1347,9 +1350,7 @@ namespace SolarExpanseLaunchWindows
             // Fastest group — inline with checkbox, matching optimal group structure
             var fGroup = new GameObject("FstCol", typeof(RectTransform));
             fGroup.transform.SetParent(inner.transform, false);
-            // 21px narrower than the sub-header's 458 to make room for the trailing ×;
-            // only the flex travel column shrinks, so dep/dv/fuel stay aligned.
-            fGroup.AddComponent<LayoutElement>().preferredWidth = 437f;
+            fGroup.AddComponent<LayoutElement>().preferredWidth = FST_GRP_W;
             var fHlg = fGroup.AddComponent<HorizontalLayoutGroup>();
             fHlg.childControlHeight = true; fHlg.childControlWidth = true;
             fHlg.childForceExpandHeight = true; fHlg.childForceExpandWidth = false;
@@ -1364,7 +1365,7 @@ namespace SolarExpanseLaunchWindows
             var fstCb1 = MakeCheckboxButton(fDCell.transform);
             var fD     = MakeColLabel(fDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
             var fDv    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W);
-            var fTvl   = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, flex: true);
+            var fTvl   = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, TVL_W);
             var fFu    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W);
 
             // Trailing × delete button (21px, far right of the primary row)
@@ -1411,10 +1412,10 @@ namespace SolarExpanseLaunchWindows
             ns.AddComponent<LayoutElement>().preferredWidth = 158f;
 
             Color dimC = new Color(0.50f, 0.50f, 0.50f);
-            // Row-2 opt group: 458px container mirrors row1's oGroup so flex tvl consumes same width.
+            // Row-2 opt group mirrors row1's oGroup exactly.
             var noOGroup = new GameObject("OptCol2", typeof(RectTransform));
             noOGroup.transform.SetParent(inner2.transform, false);
-            noOGroup.AddComponent<LayoutElement>().preferredWidth = 458f;
+            noOGroup.AddComponent<LayoutElement>().preferredWidth = OPT_GRP_W;
             var noOHlg = noOGroup.AddComponent<HorizontalLayoutGroup>();
             noOHlg.childControlHeight = true; noOHlg.childControlWidth = true;
             noOHlg.childForceExpandHeight = true; noOHlg.childForceExpandWidth = false;
@@ -1430,15 +1431,15 @@ namespace SolarExpanseLaunchWindows
             var cb2 = MakeCheckboxButton(noD2Cell.transform, forRow2: true);
             var noD  = MakeColLabel(noD2Cell.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W, dimC);
             var noDv = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
-            var noTvl = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
+            var noTvl = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, TVL_W, dimC);
             var noFu = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W, dimC);
             var sep2 = new GameObject("Sep2", typeof(RectTransform));
             sep2.transform.SetParent(inner2.transform, false);
             sep2.AddComponent<LayoutElement>().preferredWidth = 12f;
-            // Row-2 fst group: 458px container mirrors row1's fGroup so Fastest checkbox lands at same x.
+            // Row-2 fst group: same width as row1's fGroup so every column lands at the same x.
             var noFGroup = new GameObject("FstCol2", typeof(RectTransform));
             noFGroup.transform.SetParent(inner2.transform, false);
-            noFGroup.AddComponent<LayoutElement>().preferredWidth = 458f;
+            noFGroup.AddComponent<LayoutElement>().preferredWidth = FST_GRP_W;
             var noFHlg = noFGroup.AddComponent<HorizontalLayoutGroup>();
             noFHlg.childControlHeight = true; noFHlg.childControlWidth = true;
             noFHlg.childForceExpandHeight = true; noFHlg.childForceExpandWidth = false;
@@ -1453,7 +1454,7 @@ namespace SolarExpanseLaunchWindows
             var fstCb2 = MakeCheckboxButton(nfDCell.transform, forRow2: true);
             var nfD   = MakeColLabel(nfDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
             var nfDv  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
-            var nfTvl = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
+            var nfTvl = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, TVL_W, dimC);
             var nfFu  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W, dimC);
 
             // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
