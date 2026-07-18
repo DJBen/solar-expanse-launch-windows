@@ -35,13 +35,18 @@ namespace SolarExpanseLaunchWindows.UI
 
                 TMP_FontAsset font = historyGO.GetComponentInChildren<TextMeshProUGUI>(true)?.font;
                 // Prefer Oxanium (the game's heading font) for a cleaner look; fall back to Inter.
-                TMP_FontAsset oxanium = null;
+                // For table value cells, prefer a true monospace font if the game ever ships one;
+                // otherwise Orbitron (near-uniform glyph widths, matches the game's HUD numerals).
+                TMP_FontAsset oxanium = null, mono = null, orbitron = null;
                 foreach (var f in Resources.FindObjectsOfTypeAll<TMP_FontAsset>())
                 {
-                    if (f.name.IndexOf("Oxanium", StringComparison.OrdinalIgnoreCase) >= 0)
-                    { oxanium = f; break; }
+                    var n = f.name ?? "";
+                    if (oxanium  == null && n.IndexOf("Oxanium",  StringComparison.OrdinalIgnoreCase) >= 0) oxanium  = f;
+                    if (mono     == null && n.IndexOf("Mono",     StringComparison.OrdinalIgnoreCase) >= 0) mono     = f;
+                    if (orbitron == null && n.IndexOf("Orbitron", StringComparison.OrdinalIgnoreCase) >= 0) orbitron = f;
                 }
                 TMP_FontAsset headerFont = oxanium ?? font;
+                TMP_FontAsset tableFont  = mono ?? orbitron;
                 LWTooltip.Font = font;
 
                 // ── Panel: clone notificationHistory for background style ──────────────────────
@@ -73,7 +78,7 @@ namespace SolarExpanseLaunchWindows.UI
                 panelRT.anchorMin = new Vector2(0.5f, 0.5f);
                 panelRT.anchorMax = new Vector2(0.5f, 0.5f);
                 panelRT.pivot     = new Vector2(0f, 1f);
-                panelRT.sizeDelta = new Vector2(995f, 570f);
+                panelRT.sizeDelta = new Vector2(1105f, 570f);
                 panelRT.anchoredPosition = new Vector2(-9999f, -9999f);
 
                 // ── VLG drives all rows ───────────────────────────────────────────────────────
@@ -113,18 +118,18 @@ namespace SolarExpanseLaunchWindows.UI
                 MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 15f, 158f, TextAlignmentOptions.Left, bold: true);
                 // 18px spacer + (groupW−18) labels keep OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
                 MakeColLabel("CHNT1", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
-                MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 15f, 350f, TextAlignmentOptions.Left, bold: true);
+                MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 15f, 405f, TextAlignmentOptions.Left, bold: true);
                 MakeColLabel("CHSep", colHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
                 MakeColLabel("CHNT2", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
-                MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 15f, 377f, TextAlignmentOptions.Left, bold: true);
+                MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 15f, 432f, TextAlignmentOptions.Left, bold: true);
 
                 // Row 4: Sub-header — cells must match LaunchWindowPanel OPT_*/FST_* constants.
-                // Optimal: dep=108 dv=95 tvl=90 fuel=75 (368); Fastest: dep=120 dv=110 tvl=90 fuel=75 (395)
+                // Optimal: dep=108 dv=95 tvl=90 fuel=130 (423); Fastest: dep=120 dv=110 tvl=90 fuel=130 (450)
                 var subHdrGO = MakeHRow("SubHdr", panelGO.transform, 21f, 0f);
                 MakeColLabel("SH0", subHdrGO.transform, font, "", 15f, 158f, TextAlignmentOptions.Left, muted: true);
-                var (optDepBtn, optDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: true);
+                var (optDepBtn, optDepTMP, optDvBtn, optDvTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: true);
                 MakeColLabel("SHSep", subHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
-                var (fstDepBtn, fstDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: false);
+                var (fstDepBtn, fstDepTMP, fstDvBtn, fstDvTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: false);
 
                 // Divider
                 Divider("Div", panelGO.transform);
@@ -276,6 +281,9 @@ namespace SolarExpanseLaunchWindows.UI
 
                 panel.OptDepHdrTMP  = optDepTMP;
                 panel.FstDepHdrTMP  = fstDepTMP;
+                panel.OptDvHdrTMP   = optDvTMP;
+                panel.FstDvHdrTMP   = fstDvTMP;
+                panel.TableFontAsset = tableFont;
                 panel.CalcOverlayGO = calcOverlayGO;
 
                 closeBtn.onClick.AddListener(panel.ClosePanel);
@@ -285,6 +293,8 @@ namespace SolarExpanseLaunchWindows.UI
                 clearBtn.onClick.AddListener(panel.ClearAllDests);
                 optDepBtn.onClick.AddListener(panel.ToggleSortOptDep);
                 fstDepBtn.onClick.AddListener(panel.ToggleSortFstDep);
+                optDvBtn.onClick.AddListener(panel.ToggleSortOptDv);
+                fstDvBtn.onClick.AddListener(panel.ToggleSortFstDv);
 
                 var refreshBtnComp = headerGO.transform.Find("RefreshBtn")?.GetComponent<Button>();
                 if (refreshBtnComp != null) refreshBtnComp.onClick.AddListener(panel.ForceRefresh);
@@ -402,7 +412,7 @@ namespace SolarExpanseLaunchWindows.UI
         // Both columns: [DepCell(NT 12px + Departs depTextW px)][dvW Δv][flex Travel]
         // NT uses Image+LayoutElement (no TMP on GO, label on child) — same as row checkbox —
         // so TMP's ILayoutElement never competes with LayoutElement.preferredWidth.
-        static (Button depBtn, TextMeshProUGUI depTMP) MakeSubHdrGroup(Transform parent, TMP_FontAsset font, TMP_FontAsset headerFont, bool isOptimal = false)
+        static (Button depBtn, TextMeshProUGUI depTMP, Button dvBtn, TextMeshProUGUI dvTMP) MakeSubHdrGroup(Transform parent, TMP_FontAsset font, TMP_FontAsset headerFont, bool isOptimal = false)
         {
             float ntW      = 18f;
             float depTextW = isOptimal ? 90f : 102f; // wide enough for "Departs ▲" at 15pt
@@ -411,8 +421,8 @@ namespace SolarExpanseLaunchWindows.UI
 
             var go = new GameObject("SubGrp", typeof(RectTransform));
             go.transform.SetParent(parent, false);
-            // dep + dv + tvl(90) + fuel(75) — matches OPT_GRP_W / FST_GRP_W
-            go.AddComponent<LayoutElement>().preferredWidth = isOptimal ? 368f : 395f;
+            // dep + dv + tvl(90) + fuel(130) — matches OPT_GRP_W / FST_GRP_W
+            go.AddComponent<LayoutElement>().preferredWidth = isOptimal ? 423f : 450f;
             var hlg = go.AddComponent<HorizontalLayoutGroup>();
             hlg.childControlHeight = true; hlg.childControlWidth = true;
             hlg.childForceExpandHeight = true; hlg.childForceExpandWidth = false;
@@ -456,14 +466,28 @@ namespace SolarExpanseLaunchWindows.UI
             var depTMP = AddTMP(depLbl, font, "Departs", 15f, TextAlignmentOptions.Left, muted: true);
             AddTooltip(depGO, "Departure date. Click column header to sort.");
 
-            var dvTMP  = MakeColLabel("V", go.transform, font, "Δv",     10f, dvW, TextAlignmentOptions.Left, muted: true);
-            AddTooltip(dvTMP.gameObject, "Estimated fuel cost (km/s). Shown in red when it exceeds your craft's Δv budget.");
+            // Δv sort button — mirrors the Departs button pattern.
+            var dvGO  = new GameObject("V", typeof(RectTransform));
+            dvGO.transform.SetParent(go.transform, false);
+            dvGO.AddComponent<LayoutElement>().preferredWidth = dvW;
+            var dvImg = dvGO.AddComponent<Image>(); dvImg.color = Color.clear; dvImg.raycastTarget = true;
+            var dvBtn = dvGO.AddComponent<Button>(); dvBtn.targetGraphic = dvImg;
+            var dvBC  = dvBtn.colors;
+            dvBC.highlightedColor = new Color(1f, 1f, 1f, 0.12f);
+            dvBtn.colors = dvBC;
+            var dvLblGO = new GameObject("L", typeof(RectTransform));
+            dvLblGO.transform.SetParent(dvGO.transform, false);
+            var dvLblRT = dvLblGO.GetComponent<RectTransform>();
+            dvLblRT.anchorMin = Vector2.zero; dvLblRT.anchorMax = Vector2.one; dvLblRT.sizeDelta = Vector2.zero;
+            var dvTMP = AddTMP(dvLblGO, font, "Δv", 15f, TextAlignmentOptions.Left, muted: true);
+            AddTooltip(dvGO, "Estimated fuel cost (km/s). Shown in red when it exceeds your craft's Δv budget. Click to sort.");
+
             var tvlTMP = MakeColLabel("T", go.transform, font, "Travel", 15f, 90f, TextAlignmentOptions.Left, muted: true);
             AddTooltip(tvlTMP.gameObject, "Transfer travel time.");
-            var fuTMP  = MakeColLabel("F", go.transform, font, "Fuel", 15f, 75f, TextAlignmentOptions.Left, muted: true);
-            AddTooltip(fuTMP.gameObject, "Estimated propellant for this transfer with the selected craft (rocket equation, using the currently researched exhaust velocity).");
+            var fuTMP  = MakeColLabel("F", go.transform, font, "Fuel (E/F)", 15f, 130f, TextAlignmentOptions.Left, muted: true);
+            AddTooltip(fuTMP.gameObject, "Estimated propellant for this transfer with the selected craft: Empty / Full cargo load (rocket equation, using the currently researched exhaust velocity).");
 
-            return (depBtn, depTMP);
+            return (depBtn, depTMP, dvBtn, dvTMP);
         }
 
         static void AddTooltip(GameObject go, string text)

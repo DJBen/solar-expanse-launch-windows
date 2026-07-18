@@ -22,6 +22,9 @@ namespace SolarExpanseLaunchWindows
         // Set by injector
         internal TextMeshProUGUI OptDepHdrTMP;
         internal TextMeshProUGUI FstDepHdrTMP;
+        internal TextMeshProUGUI OptDvHdrTMP;
+        internal TextMeshProUGUI FstDvHdrTMP;
+        internal TMP_FontAsset   TableFontAsset; // monospace-ish font for value cells; null → FontAsset
         internal Button          OriginBtn;
         internal Button          CraftBtn;
         internal Transform       ContentParent;
@@ -69,7 +72,7 @@ namespace SolarExpanseLaunchWindows
         private double _craftFuel      = 0.0;
 
         // Sort state
-        private enum SortCol { None, OptDep, FstDep }
+        private enum SortCol { None, OptDep, FstDep, OptDv, FstDv }
         private enum SortDir { Asc, Desc }
         private SortCol _sortCol = SortCol.OptDep;
         private SortDir _sortDir = SortDir.Asc;
@@ -611,6 +614,8 @@ namespace SolarExpanseLaunchWindows
 
         internal void ToggleSortOptDep() => ToggleSort(SortCol.OptDep);
         internal void ToggleSortFstDep() => ToggleSort(SortCol.FstDep);
+        internal void ToggleSortOptDv()  => ToggleSort(SortCol.OptDv);
+        internal void ToggleSortFstDv()  => ToggleSort(SortCol.FstDv);
 
         private void ToggleSort(SortCol col)
         {
@@ -643,9 +648,14 @@ namespace SolarExpanseLaunchWindows
         private double SortKey(string id)
         {
             if (!cache.TryGetValue(id, out var e)) return double.MaxValue;
-            return _sortCol == SortCol.OptDep
-                ? e.opt1?.DepartureEpoch ?? double.MaxValue
-                : e.fst1?.DepartureEpoch ?? double.MaxValue;
+            switch (_sortCol)
+            {
+                case SortCol.OptDep: return e.opt1?.DepartureEpoch ?? double.MaxValue;
+                case SortCol.FstDep: return e.fst1?.DepartureEpoch ?? double.MaxValue;
+                case SortCol.OptDv:  return e.opt1?.DeltaVKmS ?? double.MaxValue;
+                case SortCol.FstDv:  return e.fst1?.DeltaVKmS ?? double.MaxValue;
+                default:             return double.MaxValue;
+            }
         }
 
         private void UpdateSortHeaders()
@@ -655,6 +665,10 @@ namespace SolarExpanseLaunchWindows
                 OptDepHdrTMP.text = _sortCol == SortCol.OptDep ? "Departs" + suf : "Departs";
             if (FstDepHdrTMP != null)
                 FstDepHdrTMP.text = _sortCol == SortCol.FstDep ? "Departs" + suf : "Departs";
+            if (OptDvHdrTMP != null)
+                OptDvHdrTMP.text = _sortCol == SortCol.OptDv ? "Δv" + suf : "Δv";
+            if (FstDvHdrTMP != null)
+                FstDvHdrTMP.text = _sortCol == SortCol.FstDv ? "Δv" + suf : "Δv";
         }
 
         private void TrySelectBestCraft()
@@ -1225,9 +1239,9 @@ namespace SolarExpanseLaunchWindows
         private const float FST_DEP_W  = 120f;
         private const float FST_DV_W   = 110f;
         private const float TVL_W      = 90f;
-        private const float FUEL_W     = 75f;
-        private const float OPT_GRP_W  = OPT_DEP_W + OPT_DV_W + TVL_W + FUEL_W; // 368
-        private const float FST_GRP_W  = FST_DEP_W + FST_DV_W + TVL_W + FUEL_W; // 395
+        private const float FUEL_W     = 130f; // "23.8/31.2t" (E/F) at 15pt table font
+        private const float OPT_GRP_W  = OPT_DEP_W + OPT_DV_W + TVL_W + FUEL_W; // 423
+        private const float FST_GRP_W  = FST_DEP_W + FST_DV_W + TVL_W + FUEL_W; // 450
 
         private void CreateRow(string dId)
         {
@@ -1522,7 +1536,8 @@ namespace SolarExpanseLaunchWindows
             var lblRT = lbl.GetComponent<RectTransform>();
             lblRT.anchorMin = Vector2.zero; lblRT.anchorMax = Vector2.one; lblRT.sizeDelta = Vector2.zero;
             var tmp = lbl.AddComponent<TextMeshProUGUI>();
-            if (FontAsset != null) tmp.font = FontAsset;
+            var cellFont = TableFontAsset ?? FontAsset;
+            if (cellFont != null) tmp.font = cellFont;
             tmp.text               = text;
             tmp.fontSize           = size;
             tmp.alignment          = align;
@@ -1579,18 +1594,30 @@ namespace SolarExpanseLaunchWindows
             fuel.text = FormatFuel(w.Value.DeltaVKmS);
         }
 
-        // Propellant for a transfer via the rocket equation: fuel = dry × (e^(Δv/ve) − 1).
-        // _craftExhaustV comes from SpacecraftType.GetExhaustV(player), which multiplies the
-        // base (or completed hull design) exhaust velocity by the company's researched
-        // EBonus.ComponentExhaustV bonuses — so this always reflects the currently-researched
-        // engine variant. Solar sails burn no fuel; no craft data shows "—".
+        // Propellant for a transfer via the rocket equation: fuel = mass × (e^(Δv/ve) − 1),
+        // shown as Empty/Full-cargo load. _craftExhaustV comes from
+        // SpacecraftType.GetExhaustV(player), which multiplies the base (or completed hull
+        // design) exhaust velocity by the company's researched EBonus.ComponentExhaustV
+        // bonuses — so this always reflects the currently-researched engine variant.
+        // Solar sails burn no fuel; no craft data shows "—".
         private string FormatFuel(double dvKmS)
         {
             if (_craftExhaustV <= 0 || _craftDryMass <= 0 || _craftSolarRangeAU > 0) return "—";
-            double fuel = _craftDryMass * (Math.Exp(dvKmS / _craftExhaustV) - 1.0);
-            if (double.IsNaN(fuel) || double.IsInfinity(fuel)) return "—";
-            return fuel >= 100 ? $"{fuel:F0}t" : $"{fuel:F1}t";
+            double factor = Math.Exp(dvKmS / _craftExhaustV) - 1.0;
+            if (double.IsNaN(factor) || double.IsInfinity(factor)) return "—";
+            double empty = _craftDryMass * factor;
+            if (_craftMaxCargo <= 0) return MassNum(empty) + MassUnit(empty);
+            double full = (_craftDryMass + _craftMaxCargo) * factor;
+            string ue = MassUnit(empty), uf = MassUnit(full);
+            return ue == uf
+                ? $"{MassNum(empty)}/{MassNum(full)}{uf}"
+                : $"{MassNum(empty)}{ue}/{MassNum(full)}{uf}";
         }
+
+        private static string MassNum(double t)
+            => t >= 1000 ? $"{t / 1000:F1}" : (t >= 100 ? $"{t:F0}" : $"{t:F1}");
+
+        private static string MassUnit(double t) => t >= 1000 ? "kt" : "t";
 
         private string FormatEpoch(double epoch)
         {
