@@ -73,7 +73,7 @@ namespace SolarExpanseLaunchWindows.UI
                 panelRT.anchorMin = new Vector2(0.5f, 0.5f);
                 panelRT.anchorMax = new Vector2(0.5f, 0.5f);
                 panelRT.pivot     = new Vector2(0f, 1f);
-                panelRT.sizeDelta = new Vector2(975f, 570f);
+                panelRT.sizeDelta = new Vector2(1125f, 570f);
                 panelRT.anchoredPosition = new Vector2(-9999f, -9999f);
 
                 // ── VLG drives all rows ───────────────────────────────────────────────────────
@@ -111,15 +111,15 @@ namespace SolarExpanseLaunchWindows.UI
                 // Row 2: Column headers — use game locale keys so they match the player's language.
                 var colHdrGO = MakeHRow("ColHdr", panelGO.transform, 22f, 0f);
                 MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 15f, 158f, TextAlignmentOptions.Left, bold: true);
-                // 18px spacer + 365px label keeps OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
+                // 18px spacer + 440px label keeps OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
                 MakeColLabel("CHNT1", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
-                MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 15f, 365f, TextAlignmentOptions.Left, bold: true);
+                MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 15f, 440f, TextAlignmentOptions.Left, bold: true);
                 MakeColLabel("CHSep", colHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
                 MakeColLabel("CHNT2", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
-                MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 15f, 365f, TextAlignmentOptions.Left, bold: true);
+                MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 15f, 440f, TextAlignmentOptions.Left, bold: true);
 
                 // Row 4: Sub-header — cells must match LaunchWindowPanel OPT_*/FST_* constants.
-                // Optimal: dep=108 dv=95 tvl=flex; Fastest: dep=120 dv=110 tvl=flex
+                // Optimal: dep=108 dv=95 tvl=flex fuel=75; Fastest: dep=120 dv=110 tvl=flex fuel=75
                 var subHdrGO = MakeHRow("SubHdr", panelGO.transform, 21f, 0f);
                 MakeColLabel("SH0", subHdrGO.transform, font, "", 15f, 158f, TextAlignmentOptions.Left, muted: true);
                 var (optDepBtn, optDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: true);
@@ -411,7 +411,7 @@ namespace SolarExpanseLaunchWindows.UI
 
             var go = new GameObject("SubGrp", typeof(RectTransform));
             go.transform.SetParent(parent, false);
-            go.AddComponent<LayoutElement>().preferredWidth = 383f;
+            go.AddComponent<LayoutElement>().preferredWidth = 458f;
             var hlg = go.AddComponent<HorizontalLayoutGroup>();
             hlg.childControlHeight = true; hlg.childControlWidth = true;
             hlg.childForceExpandHeight = true; hlg.childForceExpandWidth = false;
@@ -459,6 +459,8 @@ namespace SolarExpanseLaunchWindows.UI
             AddTooltip(dvTMP.gameObject, "Estimated fuel cost (km/s). Shown in red when it exceeds your craft's Δv budget.");
             var tvlTMP = MakeColLabel("T", go.transform, font, "Travel", 15f,  0f, TextAlignmentOptions.Left, muted: true, flex: true);
             AddTooltip(tvlTMP.gameObject, "Transfer travel time.");
+            var fuTMP  = MakeColLabel("F", go.transform, font, "Fuel", 15f, 75f, TextAlignmentOptions.Left, muted: true);
+            AddTooltip(fuTMP.gameObject, "Estimated propellant for this transfer with the selected craft (rocket equation, using the currently researched exhaust velocity).");
 
             return (depBtn, depTMP);
         }

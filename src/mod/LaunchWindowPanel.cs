@@ -1207,22 +1207,24 @@ namespace SolarExpanseLaunchWindows
                 {
                     // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
                     // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
-                    SetWindowCells(entry.opt1, tmps[0], tmps[1], tmps[2], ge);
-                    SetWindowCells(entry.fst1, tmps[3], tmps[4], tmps[5], ge);
-                    SetNextCells(entry.opt2, tmps[6], tmps[7], tmps[8], ge);
-                    SetNextCells(entry.fst2, tmps[9], tmps[10], tmps[11], ge);
+                    // [12]=opt1Fuel [13]=fst1Fuel [14]=opt2Fuel [15]=fst2Fuel
+                    SetWindowCells(entry.opt1, tmps[0], tmps[1], tmps[2], tmps[12], ge);
+                    SetWindowCells(entry.fst1, tmps[3], tmps[4], tmps[5], tmps[13], ge);
+                    SetNextCells(entry.opt2, tmps[6], tmps[7], tmps[8], tmps[14], ge);
+                    SetNextCells(entry.fst2, tmps[9], tmps[10], tmps[11], tmps[15], ge);
                 }
             }
         }
 
         // Sub-column widths — must match injector sub-header widths exactly.
-        // Optimal: dep=62 (cb 12 + text 50), dv=78, tvl=flex (within 255px group)
-        // Fastest: dep=70, dv=88, tvl=flex (within 255px group)
+        // Optimal: dep=108 (cb 18 + text 90), dv=95, tvl=flex, fuel=75 (within 458px group)
+        // Fastest: dep=120, dv=110, tvl=flex, fuel=75 (within 458px group; row1 group is 437 + 21px trailing ×)
         private const float CB_W       = 18f;
         private const float OPT_DEP_W  = 108f;
         private const float OPT_DV_W   = 95f;
         private const float FST_DEP_W  = 120f;
         private const float FST_DV_W   = 110f;
+        private const float FUEL_W     = 75f;
 
         private void CreateRow(string dId)
         {
@@ -1321,7 +1323,7 @@ namespace SolarExpanseLaunchWindows
             // Optimal group: [cb+dep | dv | tvl]  |gap|  Fastest: [dep | dv | tvl]
             var oGroup = new GameObject("OptCol", typeof(RectTransform));
             oGroup.transform.SetParent(inner.transform, false);
-            oGroup.AddComponent<LayoutElement>().preferredWidth = 383f;
+            oGroup.AddComponent<LayoutElement>().preferredWidth = 458f;
             var oHlg = oGroup.AddComponent<HorizontalLayoutGroup>();
             oHlg.childControlHeight = true; oHlg.childControlWidth = true;
             oHlg.childForceExpandHeight = true; oHlg.childForceExpandWidth = false;
@@ -1338,15 +1340,16 @@ namespace SolarExpanseLaunchWindows
             var oD  = MakeColLabel(oDCell.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
             var oDv  = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W);
             var oTvl = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, flex: true);
+            var oFu  = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W);
             var sep1 = new GameObject("Sep", typeof(RectTransform));
             sep1.transform.SetParent(inner.transform, false);
             sep1.AddComponent<LayoutElement>().preferredWidth = 12f;
             // Fastest group — inline with checkbox, matching optimal group structure
             var fGroup = new GameObject("FstCol", typeof(RectTransform));
             fGroup.transform.SetParent(inner.transform, false);
-            // 21px narrower than the sub-header's 383 to make room for the trailing ×;
-            // only the flex travel column shrinks, so dep/dv stay aligned.
-            fGroup.AddComponent<LayoutElement>().preferredWidth = 362f;
+            // 21px narrower than the sub-header's 458 to make room for the trailing ×;
+            // only the flex travel column shrinks, so dep/dv/fuel stay aligned.
+            fGroup.AddComponent<LayoutElement>().preferredWidth = 437f;
             var fHlg = fGroup.AddComponent<HorizontalLayoutGroup>();
             fHlg.childControlHeight = true; fHlg.childControlWidth = true;
             fHlg.childForceExpandHeight = true; fHlg.childForceExpandWidth = false;
@@ -1362,6 +1365,7 @@ namespace SolarExpanseLaunchWindows
             var fD     = MakeColLabel(fDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
             var fDv    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W);
             var fTvl   = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, flex: true);
+            var fFu    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W);
 
             // Trailing × delete button (21px, far right of the primary row)
             var xGO  = new GameObject("X", typeof(RectTransform));
@@ -1407,10 +1411,10 @@ namespace SolarExpanseLaunchWindows
             ns.AddComponent<LayoutElement>().preferredWidth = 158f;
 
             Color dimC = new Color(0.50f, 0.50f, 0.50f);
-            // Row-2 opt group: 383px container mirrors row1's oGroup so flex tvl consumes same width.
+            // Row-2 opt group: 458px container mirrors row1's oGroup so flex tvl consumes same width.
             var noOGroup = new GameObject("OptCol2", typeof(RectTransform));
             noOGroup.transform.SetParent(inner2.transform, false);
-            noOGroup.AddComponent<LayoutElement>().preferredWidth = 383f;
+            noOGroup.AddComponent<LayoutElement>().preferredWidth = 458f;
             var noOHlg = noOGroup.AddComponent<HorizontalLayoutGroup>();
             noOHlg.childControlHeight = true; noOHlg.childControlWidth = true;
             noOHlg.childForceExpandHeight = true; noOHlg.childForceExpandWidth = false;
@@ -1427,13 +1431,14 @@ namespace SolarExpanseLaunchWindows
             var noD  = MakeColLabel(noD2Cell.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W, dimC);
             var noDv = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
             var noTvl = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
+            var noFu = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W, dimC);
             var sep2 = new GameObject("Sep2", typeof(RectTransform));
             sep2.transform.SetParent(inner2.transform, false);
             sep2.AddComponent<LayoutElement>().preferredWidth = 12f;
-            // Row-2 fst group: 383px container mirrors row1's fGroup so Fastest checkbox lands at same x.
+            // Row-2 fst group: 458px container mirrors row1's fGroup so Fastest checkbox lands at same x.
             var noFGroup = new GameObject("FstCol2", typeof(RectTransform));
             noFGroup.transform.SetParent(inner2.transform, false);
-            noFGroup.AddComponent<LayoutElement>().preferredWidth = 383f;
+            noFGroup.AddComponent<LayoutElement>().preferredWidth = 458f;
             var noFHlg = noFGroup.AddComponent<HorizontalLayoutGroup>();
             noFHlg.childControlHeight = true; noFHlg.childControlWidth = true;
             noFHlg.childForceExpandHeight = true; noFHlg.childForceExpandWidth = false;
@@ -1449,10 +1454,12 @@ namespace SolarExpanseLaunchWindows
             var nfD   = MakeColLabel(nfDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
             var nfDv  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
             var nfTvl = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
+            var nfFu  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W, dimC);
 
             // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
             // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
-            rowTMPs[dId] = new[] { oD, oDv, oTvl, fD, fDv, fTvl, noD, noDv, noTvl, nfD, nfDv, nfTvl };
+            // [12]=opt1Fuel [13]=fst1Fuel [14]=opt2Fuel [15]=fst2Fuel
+            rowTMPs[dId] = new[] { oD, oDv, oTvl, fD, fDv, fTvl, noD, noDv, noTvl, nfD, nfDv, nfTvl, oFu, fFu, noFu, nfFu };
 
             var capDest = dId;
             cb1.onClick.AddListener(()    => ToggleAlarmForRow(capDest, false, false));
@@ -1531,37 +1538,52 @@ namespace SolarExpanseLaunchWindows
 
         private void SetWindowCells(LaunchWindow? w,
             TextMeshProUGUI dep, TextMeshProUGUI dv, TextMeshProUGUI tvl,
-            GravityEngine ge)
+            TextMeshProUGUI fuel, GravityEngine ge)
         {
             if (w == null || ge == null)
             {
-                dep.text = dv.text = tvl.text = "—";
-                dep.color = dv.color = tvl.color = DashColor;
+                dep.text = dv.text = tvl.text = fuel.text = "—";
+                dep.color = dv.color = tvl.color = fuel.color = DashColor;
                 return;
             }
-            dep.text = FormatEpoch(w.Value.DepartureEpoch);
-            dv.text  = $"{w.Value.DeltaVKmS:F1}km/s";
-            tvl.text = FormatTravel(w.Value.TravelTimeSeconds, ge);
+            dep.text  = FormatEpoch(w.Value.DepartureEpoch);
+            dv.text   = $"{w.Value.DeltaVKmS:F1}km/s";
+            tvl.text  = FormatTravel(w.Value.TravelTimeSeconds, ge);
+            fuel.text = FormatFuel(w.Value.DeltaVKmS);
             bool unreachable = w.Value.DeltaVKmS > _craftMaxDvKmS;
             Color c = unreachable ? RedMuted : WhiteColor;
-            dep.color = dv.color = tvl.color = c;
+            dep.color = dv.color = tvl.color = fuel.color = c;
         }
 
         private static readonly Color DimColor = new Color(0.50f, 0.50f, 0.50f);
 
         private void SetNextCells(LaunchWindow? w,
             TextMeshProUGUI dep, TextMeshProUGUI dv, TextMeshProUGUI tvl,
-            GravityEngine ge)
+            TextMeshProUGUI fuel, GravityEngine ge)
         {
-            dep.color = dv.color = tvl.color = DimColor;
+            dep.color = dv.color = tvl.color = fuel.color = DimColor;
             if (w == null || ge == null)
             {
-                dep.text = dv.text = tvl.text = "—";
+                dep.text = dv.text = tvl.text = fuel.text = "—";
                 return;
             }
-            dep.text = FormatEpoch(w.Value.DepartureEpoch);
-            dv.text  = $"{w.Value.DeltaVKmS:F1}km/s";
-            tvl.text = FormatTravel(w.Value.TravelTimeSeconds, ge);
+            dep.text  = FormatEpoch(w.Value.DepartureEpoch);
+            dv.text   = $"{w.Value.DeltaVKmS:F1}km/s";
+            tvl.text  = FormatTravel(w.Value.TravelTimeSeconds, ge);
+            fuel.text = FormatFuel(w.Value.DeltaVKmS);
+        }
+
+        // Propellant for a transfer via the rocket equation: fuel = dry × (e^(Δv/ve) − 1).
+        // _craftExhaustV comes from SpacecraftType.GetExhaustV(player), which multiplies the
+        // base (or completed hull design) exhaust velocity by the company's researched
+        // EBonus.ComponentExhaustV bonuses — so this always reflects the currently-researched
+        // engine variant. Solar sails burn no fuel; no craft data shows "—".
+        private string FormatFuel(double dvKmS)
+        {
+            if (_craftExhaustV <= 0 || _craftDryMass <= 0 || _craftSolarRangeAU > 0) return "—";
+            double fuel = _craftDryMass * (Math.Exp(dvKmS / _craftExhaustV) - 1.0);
+            if (double.IsNaN(fuel) || double.IsInfinity(fuel)) return "—";
+            return fuel >= 100 ? $"{fuel:F0}t" : $"{fuel:F1}t";
         }
 
         private string FormatEpoch(double epoch)

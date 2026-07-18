@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - **Presets dropdown** replaces the My Bases button. Contains My Bases plus one entry per in-game celestial body group (`ObjectInfoGroups`): Near-Earth Objects, Inner Belt, Middle Belt, Outer Belt, Jupiter Trojans, Kuiper Belt, etc. — the same classification the game's search window uses, listed sunward-out. Clicking a preset adds every group member known to the ephemeris.
 - **Clear** button in the panel header removes all destinations at once.
+- **Fuel** column after Travel in both the Optimal and Fastest groups: estimated propellant for each window via the rocket equation (dry mass × (e^(Δv/ve) − 1)), using the selected craft's exhaust velocity from `SpacecraftType.GetExhaustV(player)` — which already includes the company's researched exhaust-velocity bonuses, so the figure always reflects the current engine variant. Shows "—" for solar sails or when no craft data is available.
 ### Changed
 - Removed the status line ("Updated…", "Calculating…", "Added N…") between the header and the table; the full-panel Calculating overlay already covers refresh feedback.
 - Entire UI enlarged ~1.5×: fonts (labels 15pt, row values 16pt, tooltips 13pt), panel 650×380→975×570, and all column widths, row heights, dropdowns, toasts, and the toggle button scaled proportionally.
