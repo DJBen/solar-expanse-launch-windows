@@ -24,6 +24,10 @@ namespace SolarExpanseLaunchWindows
         internal TextMeshProUGUI FstDepHdrTMP;
         internal TextMeshProUGUI OptDvHdrTMP;
         internal TextMeshProUGUI FstDvHdrTMP;
+        internal TextMeshProUGUI OptArrHdrTMP;
+        internal TextMeshProUGUI FstArrHdrTMP;
+        internal TextMeshProUGUI OptFuelHdrTMP;
+        internal TextMeshProUGUI FstFuelHdrTMP;
         internal TMP_FontAsset   TableFontAsset; // monospace-ish font for value cells; null → FontAsset
         internal Button          OriginBtn;
         internal Button          CraftBtn;
@@ -72,7 +76,7 @@ namespace SolarExpanseLaunchWindows
         private double _craftFuel      = 0.0;
 
         // Sort state
-        private enum SortCol { None, OptDep, FstDep, OptDv, FstDv }
+        private enum SortCol { None, OptDep, FstDep, OptDv, FstDv, OptArr, FstArr, OptFuel, FstFuel }
         private enum SortDir { Asc, Desc }
         private SortCol _sortCol = SortCol.OptDep;
         private SortDir _sortDir = SortDir.Asc;
@@ -616,6 +620,10 @@ namespace SolarExpanseLaunchWindows
         internal void ToggleSortFstDep() => ToggleSort(SortCol.FstDep);
         internal void ToggleSortOptDv()  => ToggleSort(SortCol.OptDv);
         internal void ToggleSortFstDv()  => ToggleSort(SortCol.FstDv);
+        internal void ToggleSortOptArr() => ToggleSort(SortCol.OptArr);
+        internal void ToggleSortFstArr() => ToggleSort(SortCol.FstArr);
+        internal void ToggleSortOptFuel() => ToggleSort(SortCol.OptFuel);
+        internal void ToggleSortFstFuel() => ToggleSort(SortCol.FstFuel);
 
         private void ToggleSort(SortCol col)
         {
@@ -654,6 +662,11 @@ namespace SolarExpanseLaunchWindows
                 case SortCol.FstDep: return e.fst1?.DepartureEpoch ?? double.MaxValue;
                 case SortCol.OptDv:  return e.opt1?.DeltaVKmS ?? double.MaxValue;
                 case SortCol.FstDv:  return e.fst1?.DeltaVKmS ?? double.MaxValue;
+                case SortCol.OptArr: return e.opt1?.ArrivalEpoch ?? double.MaxValue;
+                case SortCol.FstArr: return e.fst1?.ArrivalEpoch ?? double.MaxValue;
+                // Fuel is monotonic in Δv for the selected craft, so Δv is the sort key.
+                case SortCol.OptFuel: return e.opt1?.DeltaVKmS ?? double.MaxValue;
+                case SortCol.FstFuel: return e.fst1?.DeltaVKmS ?? double.MaxValue;
                 default:             return double.MaxValue;
             }
         }
@@ -669,6 +682,14 @@ namespace SolarExpanseLaunchWindows
                 OptDvHdrTMP.text = _sortCol == SortCol.OptDv ? "Δv" + suf : "Δv";
             if (FstDvHdrTMP != null)
                 FstDvHdrTMP.text = _sortCol == SortCol.FstDv ? "Δv" + suf : "Δv";
+            if (OptArrHdrTMP != null)
+                OptArrHdrTMP.text = _sortCol == SortCol.OptArr ? "Arrives" + suf : "Arrives";
+            if (FstArrHdrTMP != null)
+                FstArrHdrTMP.text = _sortCol == SortCol.FstArr ? "Arrives" + suf : "Arrives";
+            if (OptFuelHdrTMP != null)
+                OptFuelHdrTMP.text = _sortCol == SortCol.OptFuel ? "Fuel (E/F)" + suf : "Fuel (E/F)";
+            if (FstFuelHdrTMP != null)
+                FstFuelHdrTMP.text = _sortCol == SortCol.FstFuel ? "Fuel (E/F)" + suf : "Fuel (E/F)";
         }
 
         private void TrySelectBestCraft()

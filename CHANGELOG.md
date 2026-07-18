@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - **Presets dropdown** replaces the My Bases button. Contains My Bases plus one entry per in-game celestial body group (`ObjectInfoGroups`): Near-Earth Objects, Inner Belt, Middle Belt, Outer Belt, Jupiter Trojans, Kuiper Belt, etc. — the same classification the game's search window uses, listed sunward-out. Clicking a preset adds every group member known to the ephemeris.
 - **Clear** button in the panel header removes all destinations at once.
-- **Sort by Δv**: the Δv sub-headers are now clickable sort toggles, like Departs.
+- **Sortable columns**: Δv, Arrives, and Fuel sub-headers are now clickable sort toggles, like Departs (Fuel sorts by Δv, to which it is monotonic).
 - **Fuel (E/F)** column after Travel in both the Optimal and Fastest groups: estimated propellant for each window via the rocket equation (dry mass × (e^(Δv/ve) − 1)), using the selected craft's exhaust velocity from `SpacecraftType.GetExhaustV(player)` — which already includes the company's researched exhaust-velocity bonuses, so the figure always reflects the current engine variant. Shows Empty/Full-cargo load ("23.8/31.2t", ≥1000t rendered as kt); "—" for solar sails or when no craft data is available.
 - Table value cells use Orbitron (the game's HUD-numeral font, near-uniform glyph widths) since the game ships no true monospace font; a "Mono" font is preferred automatically if one ever appears.
 ### Changed
