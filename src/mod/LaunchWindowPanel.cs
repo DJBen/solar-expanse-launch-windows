@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Data;
 using Game.UI;
+using Language;
 using Manager;
 using TMPro;
 using UnityEngine;
@@ -294,53 +295,76 @@ namespace SolarExpanseLaunchWindows
                 HidePresetsDropdown();
                 AddPresenceBodies();
             });
-            AddDropdownItem(content, "Near Earth Objects", false, () => {
-                HidePresetsDropdown();
-                AddBandBodies(PresetBand.NearEarth, "Near Earth object");
-            });
-            AddDropdownItem(content, "Inner Belt Objects", false, () => {
-                HidePresetsDropdown();
-                AddBandBodies(PresetBand.InnerBelt, "Inner Belt object");
-            });
-            AddDropdownItem(content, "Outer Belt Objects", false, () => {
-                HidePresetsDropdown();
-                AddBandBodies(PresetBand.OuterBelt, "Outer Belt object");
-            });
+
+            // One item per game group (NEOs, Inner/Middle/Outer Belt, Trojans, Kuiper Belt, …),
+            // sorted sunward-out by the group's average orbital distance.
+            foreach (var g in GetGameGroups())
+            {
+                var captured = g;
+                AddDropdownItem(content, GroupLabel(captured), false, () => {
+                    HidePresetsDropdown();
+                    AddGroupBodies(captured);
+                });
+            }
         }
 
-        // Adds every asteroid whose semi-major axis (from period, Kepler III) falls in the band.
-        // Earth's period defines 1 AU, so this needs no game-unit → AU conversion.
-        internal void AddBandBodies(PresetBand band, string label)
+        // The game classifies minor bodies with ObjectInfoGroups scene components
+        // (translateID → CelestialBodiesNames.NEOs / InnerBelt / MiddleBelt / OuterBelt /
+        // Trojans / KuiperBelt / OthersAsteroid). Presets mirror those groups exactly.
+        private List<ObjectInfoGroups> GetGameGroups()
+        {
+            try
+            {
+                return UnityEngine.Object.FindObjectsOfType<ObjectInfoGroups>()
+                    .Where(g => g != null && g.gameObject.activeSelf && g.objectInGroup.Count > 0)
+                    .OrderBy(g => g.auValue)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning($"[LW] GetGameGroups: {ex.Message}");
+                return new List<ObjectInfoGroups>();
+            }
+        }
+
+        private static string GroupLabel(ObjectInfoGroups group)
+        {
+            try
+            {
+                var name = LEManager.Get(group.translateID);
+                if (!string.IsNullOrEmpty(name)) return name;
+            }
+            catch { /* fall through to translateID */ }
+            var id = group.translateID ?? "";
+            int dot = id.LastIndexOf('.');
+            return dot >= 0 ? id.Substring(dot + 1) : id;
+        }
+
+        internal void AddGroupBodies(ObjectInfoGroups group)
         {
             TryBuildEphem();
-            if (ephem == null) return;
-
-            double earthPeriod = 0.0;
-            var earthId = ephem.AllBodyIds.FirstOrDefault(id =>
-                string.Equals(ephem.GetDisplayName(id), "Earth", StringComparison.OrdinalIgnoreCase));
-            if (earthId != null) earthPeriod = ephem.GetPeriod(earthId);
-            if (earthPeriod <= 0)
-            {
-                Plugin.Log.LogWarning("[LW] AddBandBodies: Earth period unavailable — cannot classify orbits");
-                if (StatusTMP != null) StatusTMP.text = "Cannot classify orbits (Earth not found)";
-                return;
-            }
+            if (ephem == null || group == null) return;
 
             int added = 0;
-            foreach (var bodyId in ephem.AllBodyIds)
+            foreach (var oi in group.objectInGroup)
             {
-                if (bodyId == OriginId || DestIds.Contains(bodyId)) continue;
-                if (!ephem.IsAsteroid(bodyId)) continue;
-                if (!PresetBands.InBand(band, ephem.GetPeriod(bodyId), earthPeriod)) continue;
-                DestIds.Add(bodyId);
+                if (oi == null) continue;
+                NBody nb = null;
+                try { nb = oi.NBody; } catch { }
+                if (nb == null) continue;
+                string id = nb.GetInstanceID().ToString();
+                if (id == OriginId || DestIds.Contains(id)) continue;
+                if (!ephem.AllBodyIds.Contains(id)) continue;
+                DestIds.Add(id);
                 _sidecarDirty = true;
                 added++;
             }
 
-            Plugin.Log.LogInfo($"[LW] AddBandBodies: {band} added {added}");
+            string label = GroupLabel(group);
+            Plugin.Log.LogInfo($"[LW] AddGroupBodies: '{label}' added {added} of {group.objectInGroup.Count}");
             if (added > 0) needsRefresh = true;
             if (StatusTMP != null)
-                StatusTMP.text = added > 0 ? $"Added {added} {label}(s)" : $"No new {label}s to add";
+                StatusTMP.text = added > 0 ? $"Added {added} from {label}" : $"No new bodies from {label}";
         }
 
         // Removes every destination row (Clear button in the header).

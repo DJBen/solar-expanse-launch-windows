@@ -198,7 +198,7 @@ namespace SolarExpanseLaunchWindows.UI
                     fixedWidth: 62f, height: 18f,
                     bgColor: new Color(0.06f, 0.18f, 0.10f, 0.55f),
                     hoverColor: new Color(0.10f, 0.32f, 0.16f, 0.80f));
-                AddTooltip(presetsBtn.gameObject, "Add a preset group of destinations: My Bases (bodies with a built facility), Near Earth, Inner Belt, or Outer Belt objects.");
+                AddTooltip(presetsBtn.gameObject, "Add a preset group of destinations: My Bases (bodies with a built facility), or any of the game's celestial body groups (Near-Earth Objects, Inner/Middle/Outer Belt, Jupiter Trojans, Kuiper Belt…).");
                 var searchInput = MakeInputField("SearchField", searchRowGO.transform, font, "Search bodies…", 18f);
 
                 // Calculating overlay — full-panel, shown during refresh
@@ -258,8 +258,8 @@ namespace SolarExpanseLaunchWindows.UI
                 searchDropGO.SetActive(false);
 
                 // ── Presets dropdown overlay ──────────────────────────────────────────────────
-                // 4 items × 20px + 3 × 1px spacing + 4px padding + 4px viewport margin = 91px.
-                var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 150f, 92f);
+                // My Bases + one item per game ObjectInfoGroups (~8 total); scrolls if more.
+                var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 170f, 176f);
                 presetsDropGO.SetActive(false);
 
                 // ── Attach panel MonoBehaviour ────────────────────────────────────────────────

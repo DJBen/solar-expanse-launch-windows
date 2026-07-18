@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
-- **Presets dropdown** replaces the My Bases button. Presets: My Bases, Near Earth Objects, Inner Belt Objects, Outer Belt Objects. Orbit bands are classified by semi-major axis derived from orbital period (Kepler III, Earth = 1 AU): NEO < 1.3 AU, Inner Belt 1.3–2.5 AU, Outer Belt 2.5–4.2 AU. Asteroids only.
+- **Presets dropdown** replaces the My Bases button. Contains My Bases plus one entry per in-game celestial body group (`ObjectInfoGroups`): Near-Earth Objects, Inner Belt, Middle Belt, Outer Belt, Jupiter Trojans, Kuiper Belt, etc. — the same classification the game's search window uses, listed sunward-out. Clicking a preset adds every group member known to the ephemeris.
 - **Clear** button in the panel header removes all destinations at once.
 
 ## [1.2.6] - 2026-07-03

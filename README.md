@@ -16,11 +16,10 @@ dimmed second row with the next synodic-period window for longer-term planning.
 **From / Craft dropdowns** — change origin body or filter by a spacecraft in your
 fleet. Destinations outside the selected craft's Δv budget are shown in red.
 
-**Presets** — dropdown that adds a group of destinations in one click:
-- *My Bases* — every body where you have a built facility.
-- *Near Earth Objects* — asteroids with semi-major axis under 1.3 AU.
-- *Inner Belt Objects* — asteroids between 1.3 and 2.5 AU.
-- *Outer Belt Objects* — asteroids between 2.5 and 4.2 AU.
+**Presets** — dropdown that adds a group of destinations in one click: *My Bases*
+(every body where you have a built facility) plus the game's own celestial body
+groups — Near-Earth Objects, Inner Belt, Middle Belt, Outer Belt, Jupiter
+Trojans, Kuiper Belt, and so on — exactly as the game classifies them.
 
 **Clear** — header button that removes all destinations at once.
 
