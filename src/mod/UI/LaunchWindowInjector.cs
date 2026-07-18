@@ -108,11 +108,7 @@ namespace SolarExpanseLaunchWindows.UI
                     bgColor: new Color(0.20f, 0.05f, 0.05f, 0.0f),
                     hoverColor: new Color(0.55f, 0.10f, 0.10f, 0.8f));
 
-                // Row 2: Status line
-                var statusTMP = MakeRowLabel("Status", panelGO.transform, font,
-                    "Not yet calculated", 10f, 14f, TextAlignmentOptions.Left, muted: true);
-
-                // Row 3: Column headers — use game locale keys so they match the player's language.
+                // Row 2: Column headers — use game locale keys so they match the player's language.
                 var colHdrGO = MakeHRow("ColHdr", panelGO.transform, 15f, 0f);
                 MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 10f, 105f, TextAlignmentOptions.Left, bold: true);
                 // 12px spacer + 243px label keeps OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
@@ -264,7 +260,6 @@ namespace SolarExpanseLaunchWindows.UI
 
                 // ── Attach panel MonoBehaviour ────────────────────────────────────────────────
                 var panel = panelGO.AddComponent<LaunchWindowPanel>();
-                panel.StatusTMP     = statusTMP;
                 panel.OriginBtn     = originBtn;
                 panel.CraftBtn      = craftBtn;
                 panel.ContentParent = contentGO.transform;

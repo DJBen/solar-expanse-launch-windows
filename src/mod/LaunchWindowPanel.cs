@@ -20,7 +20,6 @@ namespace SolarExpanseLaunchWindows
     internal class LaunchWindowPanel : MonoBehaviour
     {
         // Set by injector
-        internal TextMeshProUGUI StatusTMP;
         internal TextMeshProUGUI OptDepHdrTMP;
         internal TextMeshProUGUI FstDepHdrTMP;
         internal Button          OriginBtn;
@@ -379,8 +378,6 @@ namespace SolarExpanseLaunchWindows
             string label = GroupLabel(group);
             Plugin.Log.LogInfo($"[LW] AddGroupBodies: '{label}' added {added} of {group.objectInGroup.Count}");
             if (added > 0) needsRefresh = true;
-            if (StatusTMP != null)
-                StatusTMP.text = added > 0 ? $"Added {added} from {label}" : $"No new bodies from {label}";
         }
 
         // Removes every destination row (Clear button in the header).
@@ -390,8 +387,6 @@ namespace SolarExpanseLaunchWindows
             foreach (var dId in DestIds.ToList())
                 RemoveDest(dId);
             Plugin.Log.LogInfo($"[LW] ClearAllDests: removed {n}");
-            if (StatusTMP != null)
-                StatusTMP.text = n > 0 ? $"Cleared {n} destination(s)" : "List already empty";
         }
 
         private void PopulateOriginDropdown(string filter = "")
@@ -881,7 +876,6 @@ namespace SolarExpanseLaunchWindows
             if (presenceIds.Count == 0)
             {
                 Plugin.Log.LogWarning("[LW] AddPresenceBodies: GetPresenceBodyEphemIds returned 0 — reflection target may have changed in this build");
-                if (StatusTMP != null) StatusTMP.text = "No bases found";
                 return;
             }
 
@@ -899,8 +893,6 @@ namespace SolarExpanseLaunchWindows
             }
 
             if (added > 0) needsRefresh = true;
-            if (StatusTMP != null)
-                StatusTMP.text = added > 0 ? $"Added {added} base(s)" : "No new bases to add";
         }
 
         private HashSet<string> GetPresenceBodyEphemIds()
@@ -1032,12 +1024,10 @@ namespace SolarExpanseLaunchWindows
                 RebuildRows();
                 ApplySort();
                 UpdateAllCheckboxVisuals();
-                if (StatusTMP != null) StatusTMP.text = $"Updated: {FormatNow()} (cached)";
                 if (CalcOverlayGO != null) CalcOverlayGO.SetActive(false);
                 return;
             }
 
-            if (StatusTMP != null) StatusTMP.text = "Calculating…";
             if (CalcOverlayGO != null) CalcOverlayGO.SetActive(true);
 
             var ephemSnap     = ephem;
@@ -1164,12 +1154,10 @@ namespace SolarExpanseLaunchWindows
                 ApplySort();
                 UpdateAllCheckboxVisuals();
                 lastRefreshTime = Time.realtimeSinceStartup;
-                if (StatusTMP != null) StatusTMP.text = $"Updated: {FormatNow()}";
             }
             catch (Exception ex)
             {
                 Plugin.Log.LogError($"[LW] ApplyPendingResults: {ex.Message}");
-                if (StatusTMP != null) StatusTMP.text = "Error — see log";
             }
             finally
             {
@@ -1595,18 +1583,6 @@ namespace SolarExpanseLaunchWindows
             if (travelPhys < 1.5 * oneYear)
                 return $"{travelPhys / (oneYear / 12.0):F1}mo";
             return $"{travelPhys / oneYear:F1}yr";
-        }
-
-        private string FormatNow()
-        {
-            try
-            {
-                var tc = MonoBehaviourSingleton<TimeController>.Instance;
-                if (tc == null) return "";
-                var d = tc.CurrentTime;
-                return $"{d.ToString("MMM")} '{d.Year % 100:D2}";
-            }
-            catch { return ""; }
         }
 
         // ── Alarm checking ────────────────────────────────────────────────────────
