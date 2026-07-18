@@ -1278,7 +1278,12 @@ namespace SolarExpanseLaunchWindows
             // Name cell (158px): icon (18px) + name label/btn (flex)
             var nameCell = new GameObject("NameCell", typeof(RectTransform));
             nameCell.transform.SetParent(inner.transform, false);
-            nameCell.AddComponent<LayoutElement>().preferredWidth = 158f;
+            var nameCellLE = nameCell.AddComponent<LayoutElement>();
+            nameCellLE.preferredWidth = 158f;
+            // Must pin flexibleWidth: LayoutElement leaves it unset (-1), which falls through
+            // to the nested HLG's flexible=1 (from the flex name label). That made the name
+            // cell absorb the row's slack and shift every column right vs the second row.
+            nameCellLE.flexibleWidth = 0f;
             var nHlg = nameCell.AddComponent<HorizontalLayoutGroup>();
             nHlg.childControlHeight = true; nHlg.childControlWidth = true;
             nHlg.childForceExpandHeight = true; nHlg.childForceExpandWidth = false;
