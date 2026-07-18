@@ -1606,12 +1606,24 @@ namespace SolarExpanseLaunchWindows
             double factor = Math.Exp(dvKmS / _craftExhaustV) - 1.0;
             if (double.IsNaN(factor) || double.IsInfinity(factor)) return "—";
             double empty = _craftDryMass * factor;
-            if (_craftMaxCargo <= 0) return MassNum(empty) + MassUnit(empty);
+            if (_craftMaxCargo <= 0) return FuelFig(empty);
             double full = (_craftDryMass + _craftMaxCargo) * factor;
-            string ue = MassUnit(empty), uf = MassUnit(full);
-            return ue == uf
-                ? $"{MassNum(empty)}/{MassNum(full)}{uf}"
-                : $"{MassNum(empty)}{ue}/{MassNum(full)}{uf}";
+            // Compact shared-unit form when both fit the tank; otherwise per-figure
+            // units so an over-capacity figure can be flagged red individually.
+            if (!OverCap(empty) && !OverCap(full) && MassUnit(empty) == MassUnit(full))
+                return $"{MassNum(empty)}/{MassNum(full)}{MassUnit(full)}";
+            return $"{FuelFig(empty)}/{FuelFig(full)}";
+        }
+
+        // The tank is finite: a figure above GetFuelCapacity means the craft cannot
+        // actually carry enough propellant for that transfer at that load — flag it red.
+        // (0.05% tolerance absorbs FP rounding at dv == max-dv, where empty == capacity.)
+        private bool OverCap(double tons) => _craftFuel > 0 && tons > _craftFuel * 1.0005;
+
+        private string FuelFig(double tons)
+        {
+            string s = MassNum(tons) + MassUnit(tons);
+            return OverCap(tons) ? $"<color=#D05050>{s}</color>" : s;
         }
 
         private static string MassNum(double t)

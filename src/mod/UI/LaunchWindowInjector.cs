@@ -490,7 +490,7 @@ namespace SolarExpanseLaunchWindows.UI
             var tvlTMP = MakeColLabel("T", go.transform, font, "Travel", 15f, 90f, TextAlignmentOptions.Left, muted: true);
             AddTooltip(tvlTMP.gameObject, "Transfer travel time.");
             var fuTMP  = MakeColLabel("F", go.transform, font, "Fuel (E/F)", 15f, 130f, TextAlignmentOptions.Left, muted: true);
-            AddTooltip(fuTMP.gameObject, "Estimated propellant for this transfer with the selected craft: Empty / Full cargo load (rocket equation, using the currently researched exhaust velocity).");
+            AddTooltip(fuTMP.gameObject, "Estimated propellant for this transfer with the selected craft: Empty / Full cargo load (rocket equation, using the currently researched exhaust velocity). Red: exceeds the craft's fuel tank capacity — it cannot carry enough propellant for this transfer at that load.");
 
             return (depBtn, depTMP, dvBtn, dvTMP);
         }
