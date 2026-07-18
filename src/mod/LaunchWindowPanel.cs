@@ -187,6 +187,20 @@ namespace SolarExpanseLaunchWindows
         {
             if (OriginDropGO == null) return;
             if (OriginFilterInput != null) OriginFilterInput.SetTextWithoutNotify("");
+            // The synthetic Solar Orbit origin may initialize after originIds was first
+            // built (needs GravityEngine + Earth); pick it up here without losing the
+            // current origin selection.
+            if (ephem != null)
+            {
+                ephem.TryInitSolarOrbit();
+                if (ephem.SolarOrbitReady && !originIds.Contains(GameBodyEphemeris.SolarOrbitId))
+                {
+                    var cur = OriginId;
+                    originIds = ephem.GetSortedOriginIds();
+                    int idx = cur != null ? originIds.IndexOf(cur) : -1;
+                    originIndex = idx >= 0 ? idx : 0;
+                }
+            }
             _originShipBodies = GetBodiesWithPlayerShips();
             PopulateOriginDropdown("");
             PositionDropdownBelow(OriginDropGO, OriginBtn?.GetComponent<RectTransform>(), below: true);
