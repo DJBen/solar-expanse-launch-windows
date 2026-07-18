@@ -110,24 +110,24 @@ namespace SolarExpanseLaunchWindows.UI
 
                 // Row 2: Status line
                 var statusTMP = MakeRowLabel("Status", panelGO.transform, font,
-                    "Not yet calculated", 9f, 12f, TextAlignmentOptions.Left, muted: true);
+                    "Not yet calculated", 10f, 14f, TextAlignmentOptions.Left, muted: true);
 
                 // Row 3: Column headers — use game locale keys so they match the player's language.
-                var colHdrGO = MakeHRow("ColHdr", panelGO.transform, 13f, 0f);
-                MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 9f, 105f, TextAlignmentOptions.Left, bold: true);
+                var colHdrGO = MakeHRow("ColHdr", panelGO.transform, 15f, 0f);
+                MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 10f, 105f, TextAlignmentOptions.Left, bold: true);
                 // 12px spacer + 243px label keeps OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
-                MakeColLabel("CHNT1", colHdrGO.transform, font, "", 9f, 12f, TextAlignmentOptions.Left);
-                MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 9f, 243f, TextAlignmentOptions.Left, bold: true);
-                MakeColLabel("CHSep", colHdrGO.transform, font, "", 9f, 8f, TextAlignmentOptions.Left);
-                MakeColLabel("CHNT2", colHdrGO.transform, font, "", 9f, 12f, TextAlignmentOptions.Left);
-                MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 9f, 243f, TextAlignmentOptions.Left, bold: true);
+                MakeColLabel("CHNT1", colHdrGO.transform, font, "", 10f, 12f, TextAlignmentOptions.Left);
+                MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 10f, 243f, TextAlignmentOptions.Left, bold: true);
+                MakeColLabel("CHSep", colHdrGO.transform, font, "", 10f, 8f, TextAlignmentOptions.Left);
+                MakeColLabel("CHNT2", colHdrGO.transform, font, "", 10f, 12f, TextAlignmentOptions.Left);
+                MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 10f, 243f, TextAlignmentOptions.Left, bold: true);
 
                 // Row 4: Sub-header — cells must match LaunchWindowPanel OPT_*/FST_* constants.
                 // Optimal: dep=62 dv=78 tvl=flex; Fastest: dep=70 dv=88 tvl=flex
-                var subHdrGO = MakeHRow("SubHdr", panelGO.transform, 12f, 0f);
-                MakeColLabel("SH0", subHdrGO.transform, font, "", 9f, 105f, TextAlignmentOptions.Left, muted: true);
+                var subHdrGO = MakeHRow("SubHdr", panelGO.transform, 14f, 0f);
+                MakeColLabel("SH0", subHdrGO.transform, font, "", 10f, 105f, TextAlignmentOptions.Left, muted: true);
                 var (optDepBtn, optDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: true);
-                MakeColLabel("SHSep", subHdrGO.transform, font, "", 9f, 8f, TextAlignmentOptions.Left);
+                MakeColLabel("SHSep", subHdrGO.transform, font, "", 10f, 8f, TextAlignmentOptions.Left);
                 var (fstDepBtn, fstDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: false);
 
                 // Divider
@@ -193,7 +193,7 @@ namespace SolarExpanseLaunchWindows.UI
 
                 // Search row
                 var searchRowGO = MakeHRow("SearchRow", panelGO.transform, 18f, 4f);
-                MakeColLabel("SrchLbl", searchRowGO.transform, font, "+ Add:", 9f, 38f, TextAlignmentOptions.Right, muted: true);
+                MakeColLabel("SrchLbl", searchRowGO.transform, font, "+ Add:", 10f, 38f, TextAlignmentOptions.Right, muted: true);
                 var presetsBtn = MakeButton("PresetsBtn", searchRowGO.transform, font, "Presets ▼",
                     fixedWidth: 62f, height: 18f,
                     bgColor: new Color(0.06f, 0.18f, 0.10f, 0.55f),
@@ -219,7 +219,7 @@ namespace SolarExpanseLaunchWindows.UI
                 var calcTMP = calcLbl.AddComponent<TextMeshProUGUI>();
                 if (font != null) calcTMP.font = font;
                 calcTMP.text = "Calculating…";
-                calcTMP.fontSize = 18f;
+                calcTMP.fontSize = 19f;
                 calcTMP.alignment = TextAlignmentOptions.Center;
                 calcTMP.color = new Color(0.60f, 0.85f, 0.90f);
                 calcTMP.enableWordWrapping = false;
@@ -314,7 +314,7 @@ namespace SolarExpanseLaunchWindows.UI
                 else indicatorBg.color = new Color(0.15f, 0.15f, 0.2f, 0.9f);
                 indicatorBg.raycastTarget = true;
 
-                MakeFillLabel(indicatorGO, font, "LAUNCH WINDOWS", 9f);
+                MakeFillLabel(indicatorGO, font, "LAUNCH WINDOWS", 10f);
 
                 var mover = indicatorGO.AddComponent<LWMover>();
                 mover.Bg          = indicatorBg;
@@ -384,7 +384,7 @@ namespace SolarExpanseLaunchWindows.UI
             le.flexibleHeight  = 0f;
             if (expandWidth) le.flexibleWidth = 1f;
             else             le.preferredWidth = fixedWidth;
-            MakeFillLabel(go, font, text, 9f);
+            MakeFillLabel(go, font, text, 10f);
             return btn;
         }
 
@@ -441,7 +441,7 @@ namespace SolarExpanseLaunchWindows.UI
             ntLblGO.transform.SetParent(ntGO.transform, false);
             var ntLblRT = ntLblGO.GetComponent<RectTransform>();
             ntLblRT.anchorMin = Vector2.zero; ntLblRT.anchorMax = Vector2.one; ntLblRT.sizeDelta = Vector2.zero;
-            var ntTMP = AddTMP(ntLblGO, font, "!", 9f, TextAlignmentOptions.Center, muted: false, bold: true);
+            var ntTMP = AddTMP(ntLblGO, font, "!", 10f, TextAlignmentOptions.Center, muted: false, bold: true);
             ntTMP.color = new Color(0.65f, 0.82f, 0.95f, 0.9f);
 
             // Departs sort button (50/58px) — mirrors row DepText.
@@ -457,12 +457,12 @@ namespace SolarExpanseLaunchWindows.UI
             depLbl.transform.SetParent(depGO.transform, false);
             var depLblRT = depLbl.GetComponent<RectTransform>();
             depLblRT.anchorMin = Vector2.zero; depLblRT.anchorMax = Vector2.one; depLblRT.sizeDelta = Vector2.zero;
-            var depTMP = AddTMP(depLbl, font, "Departs", 9f, TextAlignmentOptions.Left, muted: true);
+            var depTMP = AddTMP(depLbl, font, "Departs", 10f, TextAlignmentOptions.Left, muted: true);
             AddTooltip(depGO, "Departure date. Click column header to sort.");
 
-            var dvTMP  = MakeColLabel("V", go.transform, font, "Δv",     9f, dvW, TextAlignmentOptions.Left, muted: true);
+            var dvTMP  = MakeColLabel("V", go.transform, font, "Δv",     10f, dvW, TextAlignmentOptions.Left, muted: true);
             AddTooltip(dvTMP.gameObject, "Estimated fuel cost (km/s). Shown in red when it exceeds your craft's Δv budget.");
-            var tvlTMP = MakeColLabel("T", go.transform, font, "Travel", 9f,  0f, TextAlignmentOptions.Left, muted: true, flex: true);
+            var tvlTMP = MakeColLabel("T", go.transform, font, "Travel", 10f,  0f, TextAlignmentOptions.Left, muted: true, flex: true);
             AddTooltip(tvlTMP.gameObject, "Transfer travel time.");
 
             return (depBtn, depTMP);
@@ -574,7 +574,7 @@ namespace SolarExpanseLaunchWindows.UI
             textRT.anchorMin = Vector2.zero; textRT.anchorMax = Vector2.one; textRT.sizeDelta = Vector2.zero;
             var textTMP = textGO.AddComponent<TextMeshProUGUI>();
             if (font != null) textTMP.font = font;
-            textTMP.fontSize = 9f; textTMP.color = Color.white;
+            textTMP.fontSize = 10f; textTMP.color = Color.white;
             textTMP.enableWordWrapping = false;
 
             var phGO  = new GameObject("Placeholder", typeof(RectTransform));
@@ -583,7 +583,7 @@ namespace SolarExpanseLaunchWindows.UI
             phRT.anchorMin = Vector2.zero; phRT.anchorMax = Vector2.one; phRT.sizeDelta = Vector2.zero;
             var phTMP = phGO.AddComponent<TextMeshProUGUI>();
             if (font != null) phTMP.font = font;
-            phTMP.fontSize = 9f; phTMP.color = new Color(0.45f, 0.45f, 0.45f);
+            phTMP.fontSize = 10f; phTMP.color = new Color(0.45f, 0.45f, 0.45f);
             phTMP.fontStyle = FontStyles.Italic; phTMP.text = placeholder;
             phTMP.enableWordWrapping = false;
 
@@ -593,7 +593,7 @@ namespace SolarExpanseLaunchWindows.UI
             field.placeholder     = phTMP;
             field.targetGraphic   = bg;
             if (font != null) field.fontAsset = font;
-            field.pointSize       = 9f;
+            field.pointSize       = 10f;
             field.caretColor      = Color.white;
             field.selectionColor  = new Color(0.27f, 0.55f, 0.75f, 0.75f);
             return field;
@@ -924,7 +924,7 @@ namespace SolarExpanseLaunchWindows.UI
             textGO.transform.SetParent(_go.transform, false);
             _tmp = textGO.AddComponent<TextMeshProUGUI>();
             if (_font != null) _tmp.font = _font;
-            _tmp.fontSize           = 8f;
+            _tmp.fontSize           = 9f;
             _tmp.color              = new Color(0.85f, 0.85f, 0.85f);
             _tmp.enableWordWrapping = true;
             _tmp.raycastTarget      = false;

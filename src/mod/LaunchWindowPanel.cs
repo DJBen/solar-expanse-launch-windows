@@ -561,7 +561,7 @@ namespace SolarExpanseLaunchWindows
             var tmp = lbl.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) tmp.font = FontAsset;
             tmp.text               = label;
-            tmp.fontSize           = 10f;
+            tmp.fontSize           = 11f;
             tmp.alignment          = TextAlignmentOptions.Left;
             tmp.color              = dimmed ? new Color(0.6f, 0.6f, 0.6f) : Color.white;
             tmp.enableWordWrapping = false;
@@ -1324,7 +1324,7 @@ namespace SolarExpanseLaunchWindows
             nameLblRT.anchorMin = Vector2.zero; nameLblRT.anchorMax = Vector2.one; nameLblRT.sizeDelta = Vector2.zero;
             var nameTMP = nameLblGO.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) nameTMP.font = FontAsset;
-            nameTMP.text = displayName; nameTMP.fontSize = 10f;
+            nameTMP.text = displayName; nameTMP.fontSize = 11f;
             nameTMP.alignment = TextAlignmentOptions.Left; nameTMP.color = Color.white;
             nameTMP.enableWordWrapping = false; nameTMP.overflowMode = TextOverflowModes.Ellipsis;
             nameTMP.raycastTarget = false;
@@ -1348,7 +1348,7 @@ namespace SolarExpanseLaunchWindows
             xLblRT.anchorMin = Vector2.zero; xLblRT.anchorMax = Vector2.one; xLblRT.sizeDelta = Vector2.zero;
             var xTMP = xLbl.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) xTMP.font = FontAsset;
-            xTMP.text = "×"; xTMP.fontSize = 9f; xTMP.alignment = TextAlignmentOptions.Center;
+            xTMP.text = "×"; xTMP.fontSize = 10f; xTMP.alignment = TextAlignmentOptions.Center;
             xTMP.color = new Color(1f, 0.55f, 0.55f); xTMP.enableWordWrapping = false;
             xTMP.raycastTarget = false;
 
@@ -1369,9 +1369,9 @@ namespace SolarExpanseLaunchWindows
             oDHlg.childForceExpandHeight = true; oDHlg.childForceExpandWidth = false;
             oDHlg.spacing = 0f;
             var cb1 = MakeCheckboxButton(oDCell.transform);
-            var oD  = MakeColLabel(oDCell.transform, "—", 10f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
-            var oDv  = MakeColLabel(oGroup.transform, "—", 10f, TextAlignmentOptions.Left, OPT_DV_W);
-            var oTvl = MakeColLabel(oGroup.transform, "—", 10f, TextAlignmentOptions.Left, 0f, flex: true);
+            var oD  = MakeColLabel(oDCell.transform, "—", 11f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
+            var oDv  = MakeColLabel(oGroup.transform, "—", 11f, TextAlignmentOptions.Left, OPT_DV_W);
+            var oTvl = MakeColLabel(oGroup.transform, "—", 11f, TextAlignmentOptions.Left, 0f, flex: true);
             var sep1 = new GameObject("Sep", typeof(RectTransform));
             sep1.transform.SetParent(inner.transform, false);
             sep1.AddComponent<LayoutElement>().preferredWidth = 8f;
@@ -1391,9 +1391,9 @@ namespace SolarExpanseLaunchWindows
             fDHlg.childForceExpandHeight = true; fDHlg.childForceExpandWidth = false;
             fDHlg.spacing = 0f;
             var fstCb1 = MakeCheckboxButton(fDCell.transform);
-            var fD     = MakeColLabel(fDCell.transform, "—", 10f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
-            var fDv    = MakeColLabel(fGroup.transform, "—", 10f, TextAlignmentOptions.Left, FST_DV_W);
-            var fTvl   = MakeColLabel(fGroup.transform, "—", 10f, TextAlignmentOptions.Left, 0f, flex: true);
+            var fD     = MakeColLabel(fDCell.transform, "—", 11f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
+            var fDv    = MakeColLabel(fGroup.transform, "—", 11f, TextAlignmentOptions.Left, FST_DV_W);
+            var fTvl   = MakeColLabel(fGroup.transform, "—", 11f, TextAlignmentOptions.Left, 0f, flex: true);
 
             // ── Next-window row (dimmed, 15px) ───────────────────────────────────────
             var row2 = new GameObject("R2", typeof(RectTransform));
@@ -1433,9 +1433,9 @@ namespace SolarExpanseLaunchWindows
             noD2Hlg.childForceExpandHeight = true; noD2Hlg.childForceExpandWidth = false;
             noD2Hlg.spacing = 0f;
             var cb2 = MakeCheckboxButton(noD2Cell.transform, forRow2: true);
-            var noD  = MakeColLabel(noD2Cell.transform, "—", 9f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W, dimC);
-            var noDv = MakeColLabel(noOGroup.transform, "—", 9f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
-            var noTvl = MakeColLabel(noOGroup.transform, "—", 9f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
+            var noD  = MakeColLabel(noD2Cell.transform, "—", 10f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W, dimC);
+            var noDv = MakeColLabel(noOGroup.transform, "—", 10f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
+            var noTvl = MakeColLabel(noOGroup.transform, "—", 10f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
             var sep2 = new GameObject("Sep2", typeof(RectTransform));
             sep2.transform.SetParent(inner2.transform, false);
             sep2.AddComponent<LayoutElement>().preferredWidth = 8f;
@@ -1455,9 +1455,9 @@ namespace SolarExpanseLaunchWindows
             nfDHlg.childForceExpandHeight = true; nfDHlg.childForceExpandWidth = false;
             nfDHlg.spacing = 0f;
             var fstCb2 = MakeCheckboxButton(nfDCell.transform, forRow2: true);
-            var nfD   = MakeColLabel(nfDCell.transform, "—", 9f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
-            var nfDv  = MakeColLabel(noFGroup.transform, "—", 9f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
-            var nfTvl = MakeColLabel(noFGroup.transform, "—", 9f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
+            var nfD   = MakeColLabel(nfDCell.transform, "—", 10f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
+            var nfDv  = MakeColLabel(noFGroup.transform, "—", 10f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
+            var nfTvl = MakeColLabel(noFGroup.transform, "—", 10f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
 
             // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
             // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
@@ -1484,9 +1484,9 @@ namespace SolarExpanseLaunchWindows
             hlg.spacing = 0f;
             float depW = isOptimal ? OPT_DEP_W : FST_DEP_W;
             float dvW  = isOptimal ? OPT_DV_W  : FST_DV_W;
-            var dep = MakeColLabel(go.transform, "—", 10f, TextAlignmentOptions.Left, depW);
-            dvTMP   = MakeColLabel(go.transform, "—", 10f, TextAlignmentOptions.Left, dvW);
-            tvlTMP  = MakeColLabel(go.transform, "—", 10f, TextAlignmentOptions.Left, 0f, flex: true);
+            var dep = MakeColLabel(go.transform, "—", 11f, TextAlignmentOptions.Left, depW);
+            dvTMP   = MakeColLabel(go.transform, "—", 11f, TextAlignmentOptions.Left, dvW);
+            tvlTMP  = MakeColLabel(go.transform, "—", 11f, TextAlignmentOptions.Left, 0f, flex: true);
             return dep;
         }
 
@@ -1773,7 +1773,7 @@ namespace SolarExpanseLaunchWindows
             msgGO.AddComponent<LayoutElement>().flexibleWidth = 1f;
             var msgTMP = msgGO.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) msgTMP.font = FontAsset;
-            msgTMP.text = richText; msgTMP.fontSize = 10f;
+            msgTMP.text = richText; msgTMP.fontSize = 11f;
             msgTMP.color = Color.white; msgTMP.alignment = TextAlignmentOptions.Left;
             msgTMP.enableWordWrapping = false; msgTMP.overflowMode = TextOverflowModes.Ellipsis;
             msgTMP.richText = true; msgTMP.raycastTarget = false;
@@ -1787,7 +1787,7 @@ namespace SolarExpanseLaunchWindows
             var cLbl = new GameObject("L", typeof(RectTransform)); cLbl.transform.SetParent(closeGO.transform, false);
             var cLblRT = cLbl.GetComponent<RectTransform>(); cLblRT.anchorMin = Vector2.zero; cLblRT.anchorMax = Vector2.one; cLblRT.sizeDelta = Vector2.zero;
             var cTMP = cLbl.AddComponent<TextMeshProUGUI>(); if (FontAsset != null) cTMP.font = FontAsset;
-            cTMP.text = "×"; cTMP.fontSize = 14f; cTMP.alignment = TextAlignmentOptions.Center;
+            cTMP.text = "×"; cTMP.fontSize = 15f; cTMP.alignment = TextAlignmentOptions.Center;
             cTMP.color = Color.white; cTMP.raycastTarget = false; cTMP.enableWordWrapping = false;
         }
 
@@ -1821,7 +1821,7 @@ namespace SolarExpanseLaunchWindows
             msgGO.AddComponent<LayoutElement>().flexibleWidth = 1f;
             var msgTMP = msgGO.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) msgTMP.font = FontAsset;
-            msgTMP.text = message; msgTMP.fontSize = 11f;
+            msgTMP.text = message; msgTMP.fontSize = 12f;
             msgTMP.color = Color.white; msgTMP.alignment = TextAlignmentOptions.Left;
             msgTMP.enableWordWrapping = false; msgTMP.overflowMode = TextOverflowModes.Ellipsis;
             msgTMP.raycastTarget = false;
@@ -1840,7 +1840,7 @@ namespace SolarExpanseLaunchWindows
             clRT.anchorMin = Vector2.zero; clRT.anchorMax = Vector2.one; clRT.sizeDelta = Vector2.zero;
             var closeTMP = closeLbl.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) closeTMP.font = FontAsset;
-            closeTMP.text = "×"; closeTMP.fontSize = 14f;
+            closeTMP.text = "×"; closeTMP.fontSize = 15f;
             closeTMP.alignment = TextAlignmentOptions.Center;
             closeTMP.color = Color.white; closeTMP.raycastTarget = false; closeTMP.enableWordWrapping = false;
         }
@@ -1866,7 +1866,7 @@ namespace SolarExpanseLaunchWindows
             lblRT.anchorMin = Vector2.zero; lblRT.anchorMax = Vector2.one; lblRT.sizeDelta = Vector2.zero;
             var tmp = lbl.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) tmp.font = FontAsset;
-            tmp.text = "□"; tmp.fontSize = forRow2 ? 7f : 8f;
+            tmp.text = "□"; tmp.fontSize = forRow2 ? 8f : 9f;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = Color.clear; tmp.enableWordWrapping = false; tmp.raycastTarget = false;
             img.color = Color.clear;
