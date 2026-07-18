@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Removed the status line ("Updated…", "Calculating…", "Added N…") between the header and the table; the full-panel Calculating overlay already covers refresh feedback.
 - Entire UI enlarged ~1.5×: fonts (labels 15pt, row values 16pt, tooltips 13pt), panel 650×380→975×570, and all column widths, row heights, dropdowns, toasts, and the toggle button scaled proportionally.
 - Per-row × delete button moved from the name cell to the trailing edge of the row.
+- Both opportunity rows now use the same 15pt value font (first row is no longer larger — dimming alone distinguishes the next window), and the Δv columns are narrower (95/110px).
 ### Fixed
 - Departure column widened (62→72 / 70→80 px) so the sort arrow ("Departs ▲/▼") is no longer ellipsized at the larger font size.
 - Destroyed bodies (`ObjectInfo.IsInGameDestroy` — impacted, nuked, or mined-out asteroids like EX0-99) are now hidden from presets, search results, and the origin dropdown, and are auto-removed from the destination table on refresh.

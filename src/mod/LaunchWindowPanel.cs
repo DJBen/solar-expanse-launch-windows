@@ -1220,9 +1220,9 @@ namespace SolarExpanseLaunchWindows
         // Fastest: dep=70, dv=88, tvl=flex (within 255px group)
         private const float CB_W       = 18f;
         private const float OPT_DEP_W  = 108f;
-        private const float OPT_DV_W   = 117f;
+        private const float OPT_DV_W   = 95f;
         private const float FST_DEP_W  = 120f;
-        private const float FST_DV_W   = 132f;
+        private const float FST_DV_W   = 110f;
 
         private void CreateRow(string dId)
         {
@@ -1335,9 +1335,9 @@ namespace SolarExpanseLaunchWindows
             oDHlg.childForceExpandHeight = true; oDHlg.childForceExpandWidth = false;
             oDHlg.spacing = 0f;
             var cb1 = MakeCheckboxButton(oDCell.transform);
-            var oD  = MakeColLabel(oDCell.transform, "—", 16f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
-            var oDv  = MakeColLabel(oGroup.transform, "—", 16f, TextAlignmentOptions.Left, OPT_DV_W);
-            var oTvl = MakeColLabel(oGroup.transform, "—", 16f, TextAlignmentOptions.Left, 0f, flex: true);
+            var oD  = MakeColLabel(oDCell.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
+            var oDv  = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W);
+            var oTvl = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, flex: true);
             var sep1 = new GameObject("Sep", typeof(RectTransform));
             sep1.transform.SetParent(inner.transform, false);
             sep1.AddComponent<LayoutElement>().preferredWidth = 12f;
@@ -1359,9 +1359,9 @@ namespace SolarExpanseLaunchWindows
             fDHlg.childForceExpandHeight = true; fDHlg.childForceExpandWidth = false;
             fDHlg.spacing = 0f;
             var fstCb1 = MakeCheckboxButton(fDCell.transform);
-            var fD     = MakeColLabel(fDCell.transform, "—", 16f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
-            var fDv    = MakeColLabel(fGroup.transform, "—", 16f, TextAlignmentOptions.Left, FST_DV_W);
-            var fTvl   = MakeColLabel(fGroup.transform, "—", 16f, TextAlignmentOptions.Left, 0f, flex: true);
+            var fD     = MakeColLabel(fDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
+            var fDv    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W);
+            var fTvl   = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, flex: true);
 
             // Trailing × delete button (21px, far right of the primary row)
             var xGO  = new GameObject("X", typeof(RectTransform));
@@ -1475,9 +1475,9 @@ namespace SolarExpanseLaunchWindows
             hlg.spacing = 0f;
             float depW = isOptimal ? OPT_DEP_W : FST_DEP_W;
             float dvW  = isOptimal ? OPT_DV_W  : FST_DV_W;
-            var dep = MakeColLabel(go.transform, "—", 16f, TextAlignmentOptions.Left, depW);
-            dvTMP   = MakeColLabel(go.transform, "—", 16f, TextAlignmentOptions.Left, dvW);
-            tvlTMP  = MakeColLabel(go.transform, "—", 16f, TextAlignmentOptions.Left, 0f, flex: true);
+            var dep = MakeColLabel(go.transform, "—", 15f, TextAlignmentOptions.Left, depW);
+            dvTMP   = MakeColLabel(go.transform, "—", 15f, TextAlignmentOptions.Left, dvW);
+            tvlTMP  = MakeColLabel(go.transform, "—", 15f, TextAlignmentOptions.Left, 0f, flex: true);
             return dep;
         }
 
