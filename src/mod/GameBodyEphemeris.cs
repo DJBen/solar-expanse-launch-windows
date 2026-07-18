@@ -100,6 +100,10 @@ namespace SolarExpanseLaunchWindows
         public bool IsPlanetOrAsteroid(string bodyId)
             => typesById.TryGetValue(bodyId, out var t) && (t == EObjectTypes.Planet || t == EObjectTypes.Asteroid);
 
+        // Heliocentric player locations ("Solar Orbit" stations) — valid transfer origins.
+        public bool IsSolarOrbit(string bodyId)
+            => typesById.TryGetValue(bodyId, out var t) && t == EObjectTypes.SolarOrbit;
+
         // Returns planet body IDs sorted by current orbital radius ascending.
         public List<string> GetSortedPlanetIds()
         {
@@ -112,14 +116,15 @@ namespace SolarExpanseLaunchWindows
                 .ToList();
         }
 
-        // Returns planets + asteroids sorted by orbital radius — used for the "From" dropdown.
+        // Returns planets + asteroids + solar-orbit stations sorted by orbital radius —
+        // used for the "From" dropdown.
         public List<string> GetSortedOriginIds()
         {
             var ge = GravityEngine.Instance();
             if (ge == null) return new List<string>();
             double physNow = ge.GetPhysicalTimeDouble();
             return AllBodyIds
-                .Where(IsPlanetOrAsteroid)
+                .Where(id => IsPlanetOrAsteroid(id) || IsSolarOrbit(id))
                 .OrderBy(id => GetState(id, physNow).Position.Magnitude)
                 .ToList();
         }
