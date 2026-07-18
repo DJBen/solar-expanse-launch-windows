@@ -1219,9 +1219,9 @@ namespace SolarExpanseLaunchWindows
         // Optimal: dep=62 (cb 12 + text 50), dv=78, tvl=flex (within 255px group)
         // Fastest: dep=70, dv=88, tvl=flex (within 255px group)
         private const float CB_W       = 12f;
-        private const float OPT_DEP_W  = 62f;
+        private const float OPT_DEP_W  = 72f;
         private const float OPT_DV_W   = 78f;
-        private const float FST_DEP_W  = 70f;
+        private const float FST_DEP_W  = 80f;
         private const float FST_DV_W   = 88f;
 
         private void CreateRow(string dId)

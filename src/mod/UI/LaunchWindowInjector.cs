@@ -119,7 +119,7 @@ namespace SolarExpanseLaunchWindows.UI
                 MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 10f, 243f, TextAlignmentOptions.Left, bold: true);
 
                 // Row 4: Sub-header — cells must match LaunchWindowPanel OPT_*/FST_* constants.
-                // Optimal: dep=62 dv=78 tvl=flex; Fastest: dep=70 dv=88 tvl=flex
+                // Optimal: dep=72 dv=78 tvl=flex; Fastest: dep=80 dv=88 tvl=flex
                 var subHdrGO = MakeHRow("SubHdr", panelGO.transform, 14f, 0f);
                 MakeColLabel("SH0", subHdrGO.transform, font, "", 10f, 105f, TextAlignmentOptions.Left, muted: true);
                 var (optDepBtn, optDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: true);
@@ -405,8 +405,8 @@ namespace SolarExpanseLaunchWindows.UI
         static (Button depBtn, TextMeshProUGUI depTMP) MakeSubHdrGroup(Transform parent, TMP_FontAsset font, TMP_FontAsset headerFont, bool isOptimal = false)
         {
             float ntW      = 12f;
-            float depTextW = isOptimal ? 50f : 58f;
-            float depCellW = ntW + depTextW; // 62 or 70 — matches OPT_DEP_W / FST_DEP_W
+            float depTextW = isOptimal ? 60f : 68f; // wide enough for "Departs ▲" at 10pt
+            float depCellW = ntW + depTextW; // 72 or 80 — matches OPT_DEP_W / FST_DEP_W
             float dvW      = isOptimal ? 78f : 88f;
 
             var go = new GameObject("SubGrp", typeof(RectTransform));
