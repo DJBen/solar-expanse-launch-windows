@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Removed the status line ("Updated…", "Calculating…", "Added N…") between the header and the table; the full-panel Calculating overlay already covers refresh feedback.
 - Entire UI enlarged ~1.5×: fonts (labels 15pt, row values 16pt, tooltips 13pt), panel 650×380→975×570, and all column widths, row heights, dropdowns, toasts, and the toggle button scaled proportionally.
 - Per-row × delete button moved from the name cell to the trailing edge of the row.
+- Travel column replaced by **Arrives** (estimated arrival date); Departs and Arrives both use `yy/MM/dd` format (e.g. 26/07/18).
 - Both opportunity rows now use the same 15pt value font (first row is no longer larger — dimming alone distinguishes the next window), and the Δv columns are narrower (95/110px).
 ### Fixed
 - Mouse-wheel scrolling now works from anywhere over the destination list, not only when hovering raycastable elements like body names.

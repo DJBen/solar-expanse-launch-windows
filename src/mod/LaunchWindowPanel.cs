@@ -1231,17 +1231,17 @@ namespace SolarExpanseLaunchWindows
         }
 
         // Sub-column widths — must match injector sub-header widths exactly.
-        // All fixed so both rows align: Optimal group = 108+95+90+75 = 368px;
-        // Fastest group = 120+110+90+75 = 395px (+ 21px trailing × on row 1 only).
+        // All fixed so both rows align: Optimal group = 118+95+100+130 = 443px;
+        // Fastest group = 120+110+100+130 = 460px (+ 21px trailing × on row 1 only).
         private const float CB_W       = 18f;
-        private const float OPT_DEP_W  = 108f;
+        private const float OPT_DEP_W  = 118f; // cb 18 + "26/07/18" at 15pt table font
         private const float OPT_DV_W   = 95f;
         private const float FST_DEP_W  = 120f;
         private const float FST_DV_W   = 110f;
-        private const float TVL_W      = 90f;
+        private const float ARR_W      = 100f; // "26/07/18" arrival date
         private const float FUEL_W     = 130f; // "23.8/31.2t" (E/F) at 15pt table font
-        private const float OPT_GRP_W  = OPT_DEP_W + OPT_DV_W + TVL_W + FUEL_W; // 423
-        private const float FST_GRP_W  = FST_DEP_W + FST_DV_W + TVL_W + FUEL_W; // 450
+        private const float OPT_GRP_W  = OPT_DEP_W + OPT_DV_W + ARR_W + FUEL_W; // 443
+        private const float FST_GRP_W  = FST_DEP_W + FST_DV_W + ARR_W + FUEL_W; // 460
 
         private void CreateRow(string dId)
         {
@@ -1361,7 +1361,7 @@ namespace SolarExpanseLaunchWindows
             var cb1 = MakeCheckboxButton(oDCell.transform);
             var oD  = MakeColLabel(oDCell.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
             var oDv  = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W);
-            var oTvl = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, TVL_W);
+            var oTvl = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W);
             var oFu  = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W);
             var sep1 = new GameObject("Sep", typeof(RectTransform));
             sep1.transform.SetParent(inner.transform, false);
@@ -1384,7 +1384,7 @@ namespace SolarExpanseLaunchWindows
             var fstCb1 = MakeCheckboxButton(fDCell.transform);
             var fD     = MakeColLabel(fDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
             var fDv    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W);
-            var fTvl   = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, TVL_W);
+            var fTvl   = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W);
             var fFu    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W);
 
             // Trailing × delete button (21px, far right of the primary row)
@@ -1450,7 +1450,7 @@ namespace SolarExpanseLaunchWindows
             var cb2 = MakeCheckboxButton(noD2Cell.transform, forRow2: true);
             var noD  = MakeColLabel(noD2Cell.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W, dimC);
             var noDv = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
-            var noTvl = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, TVL_W, dimC);
+            var noTvl = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W, dimC);
             var noFu = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W, dimC);
             var sep2 = new GameObject("Sep2", typeof(RectTransform));
             sep2.transform.SetParent(inner2.transform, false);
@@ -1473,7 +1473,7 @@ namespace SolarExpanseLaunchWindows
             var fstCb2 = MakeCheckboxButton(nfDCell.transform, forRow2: true);
             var nfD   = MakeColLabel(nfDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
             var nfDv  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
-            var nfTvl = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, TVL_W, dimC);
+            var nfTvl = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W, dimC);
             var nfFu  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W, dimC);
 
             // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
@@ -1558,39 +1558,39 @@ namespace SolarExpanseLaunchWindows
         private static readonly Color DashColor  = new Color(0.55f, 0.55f, 0.55f);
 
         private void SetWindowCells(LaunchWindow? w,
-            TextMeshProUGUI dep, TextMeshProUGUI dv, TextMeshProUGUI tvl,
+            TextMeshProUGUI dep, TextMeshProUGUI dv, TextMeshProUGUI arr,
             TextMeshProUGUI fuel, GravityEngine ge)
         {
             if (w == null || ge == null)
             {
-                dep.text = dv.text = tvl.text = fuel.text = "—";
-                dep.color = dv.color = tvl.color = fuel.color = DashColor;
+                dep.text = dv.text = arr.text = fuel.text = "—";
+                dep.color = dv.color = arr.color = fuel.color = DashColor;
                 return;
             }
             dep.text  = FormatEpoch(w.Value.DepartureEpoch);
             dv.text   = $"{w.Value.DeltaVKmS:F1}km/s";
-            tvl.text  = FormatTravel(w.Value.TravelTimeSeconds, ge);
+            arr.text  = FormatEpoch(w.Value.ArrivalEpoch);
             fuel.text = FormatFuel(w.Value.DeltaVKmS);
             bool unreachable = w.Value.DeltaVKmS > _craftMaxDvKmS;
             Color c = unreachable ? RedMuted : WhiteColor;
-            dep.color = dv.color = tvl.color = fuel.color = c;
+            dep.color = dv.color = arr.color = fuel.color = c;
         }
 
         private static readonly Color DimColor = new Color(0.50f, 0.50f, 0.50f);
 
         private void SetNextCells(LaunchWindow? w,
-            TextMeshProUGUI dep, TextMeshProUGUI dv, TextMeshProUGUI tvl,
+            TextMeshProUGUI dep, TextMeshProUGUI dv, TextMeshProUGUI arr,
             TextMeshProUGUI fuel, GravityEngine ge)
         {
-            dep.color = dv.color = tvl.color = fuel.color = DimColor;
+            dep.color = dv.color = arr.color = fuel.color = DimColor;
             if (w == null || ge == null)
             {
-                dep.text = dv.text = tvl.text = fuel.text = "—";
+                dep.text = dv.text = arr.text = fuel.text = "—";
                 return;
             }
             dep.text  = FormatEpoch(w.Value.DepartureEpoch);
             dv.text   = $"{w.Value.DeltaVKmS:F1}km/s";
-            tvl.text  = FormatTravel(w.Value.TravelTimeSeconds, ge);
+            arr.text  = FormatEpoch(w.Value.ArrivalEpoch);
             fuel.text = FormatFuel(w.Value.DeltaVKmS);
         }
 
@@ -1641,18 +1641,9 @@ namespace SolarExpanseLaunchWindows
                 double secPerPhys = GravityScaler.GetGameSecondPerPhysicsSecond();
                 if (secPerPhys <= 0) secPerPhys = 1;
                 DateTime d = tc.CurrentTime + TimeSpan.FromSeconds((epoch - ge.GetPhysicalTimeDouble()) * secPerPhys);
-                return $"{d.ToString("MMM")} '{d.Year % 100:D2}";
+                return d.ToString("yy/MM/dd");
             }
             catch { return "—"; }
-        }
-
-        private string FormatTravel(double travelPhys, GravityEngine ge)
-        {
-            double oneYear = ge.timeScale;
-            if (oneYear <= 0) return "—";
-            if (travelPhys < 1.5 * oneYear)
-                return $"{travelPhys / (oneYear / 12.0):F1}mo";
-            return $"{travelPhys / oneYear:F1}yr";
         }
 
         // ── Alarm checking ────────────────────────────────────────────────────────
