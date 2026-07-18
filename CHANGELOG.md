@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Per-row × delete button moved from the name cell to the trailing edge of the row.
 - Both opportunity rows now use the same 15pt value font (first row is no longer larger — dimming alone distinguishes the next window), and the Δv columns are narrower (95/110px).
 ### Fixed
+- Mouse-wheel scrolling now works from anywhere over the destination list, not only when hovering raycastable elements like body names.
 - Departure column widened (62→72 / 70→80 px) so the sort arrow ("Departs ▲/▼") is no longer ellipsized at the larger font size.
 - Destroyed bodies (`ObjectInfo.IsInGameDestroy` — impacted, nuked, or mined-out asteroids like EX0-99) are now hidden from presets, search results, and the origin dropdown, and are auto-removed from the destination table on refresh.
 

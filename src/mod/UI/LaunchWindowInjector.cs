@@ -169,6 +169,11 @@ namespace SolarExpanseLaunchWindows.UI
                 vpRT.anchorMin = Vector2.zero; vpRT.anchorMax = Vector2.one;
                 vpRT.offsetMin = Vector2.zero; vpRT.offsetMax = new Vector2(-10f, 0f);
                 vpGO.AddComponent<RectMask2D>();
+                // Invisible raycast surface so the mouse wheel scrolls from anywhere in the
+                // list, not just over raycastable row elements (name buttons, checkboxes).
+                var vpImg = vpGO.AddComponent<Image>();
+                vpImg.color = Color.clear;
+                vpImg.raycastTarget = true;
 
                 // Content
                 var contentGO = new GameObject("Content", typeof(RectTransform));
