@@ -1270,7 +1270,7 @@ namespace SolarExpanseLaunchWindows
                 }
             }
 
-            // Name cell (105px): icon (12px) + name label/btn (flex) + × button (14px)
+            // Name cell (105px): icon (12px) + name label/btn (flex)
             var nameCell = new GameObject("NameCell", typeof(RectTransform));
             nameCell.transform.SetParent(inner.transform, false);
             nameCell.AddComponent<LayoutElement>().preferredWidth = 105f;
@@ -1318,28 +1318,6 @@ namespace SolarExpanseLaunchWindows
             nameTMP.raycastTarget = false;
             rowNameTMPs[dId] = nameTMP;
 
-            var xGO  = new GameObject("X", typeof(RectTransform));
-            xGO.transform.SetParent(nameCell.transform, false);
-            xGO.AddComponent<LayoutElement>().preferredWidth = 14f;
-            var xImg = xGO.AddComponent<Image>(); xImg.color = new Color(0.35f, 0.06f, 0.06f, 0.55f);
-            var xBtn = xGO.AddComponent<Button>(); xBtn.targetGraphic = xImg;
-            var xC   = xBtn.colors;
-            xC.normalColor      = new Color(0.35f, 0.06f, 0.06f, 0.55f);
-            xC.highlightedColor = new Color(0.70f, 0.12f, 0.12f, 0.90f);
-            xC.pressedColor     = new Color(0.90f, 0.15f, 0.15f, 1.00f);
-            xBtn.colors = xC;
-            var captured = dId;
-            xBtn.onClick.AddListener(() => RemoveDest(captured));
-            var xLbl = new GameObject("L", typeof(RectTransform));
-            xLbl.transform.SetParent(xGO.transform, false);
-            var xLblRT = xLbl.GetComponent<RectTransform>();
-            xLblRT.anchorMin = Vector2.zero; xLblRT.anchorMax = Vector2.one; xLblRT.sizeDelta = Vector2.zero;
-            var xTMP = xLbl.AddComponent<TextMeshProUGUI>();
-            if (FontAsset != null) xTMP.font = FontAsset;
-            xTMP.text = "×"; xTMP.fontSize = 10f; xTMP.alignment = TextAlignmentOptions.Center;
-            xTMP.color = new Color(1f, 0.55f, 0.55f); xTMP.enableWordWrapping = false;
-            xTMP.raycastTarget = false;
-
             // Optimal group: [cb+dep | dv | tvl]  |gap|  Fastest: [dep | dv | tvl]
             var oGroup = new GameObject("OptCol", typeof(RectTransform));
             oGroup.transform.SetParent(inner.transform, false);
@@ -1366,7 +1344,9 @@ namespace SolarExpanseLaunchWindows
             // Fastest group — inline with checkbox, matching optimal group structure
             var fGroup = new GameObject("FstCol", typeof(RectTransform));
             fGroup.transform.SetParent(inner.transform, false);
-            fGroup.AddComponent<LayoutElement>().preferredWidth = 255f;
+            // 14px narrower than the sub-header's 255 to make room for the trailing ×;
+            // only the flex travel column shrinks, so dep/dv stay aligned.
+            fGroup.AddComponent<LayoutElement>().preferredWidth = 241f;
             var fHlg = fGroup.AddComponent<HorizontalLayoutGroup>();
             fHlg.childControlHeight = true; fHlg.childControlWidth = true;
             fHlg.childForceExpandHeight = true; fHlg.childForceExpandWidth = false;
@@ -1382,6 +1362,29 @@ namespace SolarExpanseLaunchWindows
             var fD     = MakeColLabel(fDCell.transform, "—", 11f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
             var fDv    = MakeColLabel(fGroup.transform, "—", 11f, TextAlignmentOptions.Left, FST_DV_W);
             var fTvl   = MakeColLabel(fGroup.transform, "—", 11f, TextAlignmentOptions.Left, 0f, flex: true);
+
+            // Trailing × delete button (14px, far right of the primary row)
+            var xGO  = new GameObject("X", typeof(RectTransform));
+            xGO.transform.SetParent(inner.transform, false);
+            xGO.AddComponent<LayoutElement>().preferredWidth = 14f;
+            var xImg = xGO.AddComponent<Image>(); xImg.color = new Color(0.35f, 0.06f, 0.06f, 0.55f);
+            var xBtn = xGO.AddComponent<Button>(); xBtn.targetGraphic = xImg;
+            var xC   = xBtn.colors;
+            xC.normalColor      = new Color(0.35f, 0.06f, 0.06f, 0.55f);
+            xC.highlightedColor = new Color(0.70f, 0.12f, 0.12f, 0.90f);
+            xC.pressedColor     = new Color(0.90f, 0.15f, 0.15f, 1.00f);
+            xBtn.colors = xC;
+            var captured = dId;
+            xBtn.onClick.AddListener(() => RemoveDest(captured));
+            var xLbl = new GameObject("L", typeof(RectTransform));
+            xLbl.transform.SetParent(xGO.transform, false);
+            var xLblRT = xLbl.GetComponent<RectTransform>();
+            xLblRT.anchorMin = Vector2.zero; xLblRT.anchorMax = Vector2.one; xLblRT.sizeDelta = Vector2.zero;
+            var xTMP = xLbl.AddComponent<TextMeshProUGUI>();
+            if (FontAsset != null) xTMP.font = FontAsset;
+            xTMP.text = "×"; xTMP.fontSize = 10f; xTMP.alignment = TextAlignmentOptions.Center;
+            xTMP.color = new Color(1f, 0.55f, 0.55f); xTMP.enableWordWrapping = false;
+            xTMP.raycastTarget = false;
 
             // ── Next-window row (dimmed, 15px) ───────────────────────────────────────
             var row2 = new GameObject("R2", typeof(RectTransform));
