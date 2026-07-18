@@ -308,6 +308,22 @@ namespace SolarExpanseLaunchWindows
             }
         }
 
+        // A body the game has "virtually destroyed" (impacted, nuked, mined out) keeps
+        // its NBody in the scene, so the ephemeris still lists it. Hide such bodies
+        // from presets, search, origins, and existing rows.
+        private static bool IsBodyDestroyed(NBody nb)
+        {
+            try
+            {
+                var oi = nb != null ? nb.GetObjectInfo() : null;
+                return oi != null && oi.IsInGameDestroy;
+            }
+            catch { return false; }
+        }
+
+        private bool IsBodyDestroyedId(string bodyId)
+            => ephem != null && IsBodyDestroyed(ephem.GetNBodyForId(bodyId));
+
         // The game classifies minor bodies with ObjectInfoGroups scene components
         // (translateID → CelestialBodiesNames.NEOs / InnerBelt / MiddleBelt / OuterBelt /
         // Trojans / KuiperBelt / OthersAsteroid). Presets mirror those groups exactly.
@@ -348,7 +364,7 @@ namespace SolarExpanseLaunchWindows
             int added = 0;
             foreach (var oi in group.objectInGroup)
             {
-                if (oi == null) continue;
+                if (oi == null || oi.IsInGameDestroy) continue;
                 NBody nb = null;
                 try { nb = oi.NBody; } catch { }
                 if (nb == null) continue;
@@ -389,6 +405,7 @@ namespace SolarExpanseLaunchWindows
             var ships = _originShipBodies ?? new HashSet<string>();
             var filtered = originIds
                 .Select(id => (id, label: ephem.GetDisplayName(id)))
+                .Where(x => !IsBodyDestroyedId(x.id))
                 .Where(x => string.IsNullOrEmpty(filter) ||
                             x.label.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0);
             // Tier 1: presence; Tier 2: planet (0) vs non-planet (1); Tier 3: alphabetical.
@@ -455,6 +472,7 @@ namespace SolarExpanseLaunchWindows
 
             var matches = ephem.AllBodyIds
                 .Where(id => ephem.GetDisplayName(id).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                .Where(id => !IsBodyDestroyedId(id))
                 .OrderBy(id => ephem.GetDisplayName(id))
                 .Take(10)
                 .ToList();
@@ -871,6 +889,7 @@ namespace SolarExpanseLaunchWindows
             foreach (var bodyId in ephem.AllBodyIds)
             {
                 if (bodyId == OriginId || DestIds.Contains(bodyId)) continue;
+                if (IsBodyDestroyedId(bodyId)) continue;
                 if (presenceIds.Contains(bodyId))
                 {
                     DestIds.Add(bodyId);
@@ -976,6 +995,10 @@ namespace SolarExpanseLaunchWindows
             refreshing   = true;
             needsRefresh = false;
             if (ephem == null || finder == null || OriginId == null) { refreshing = false; return; }
+
+            // Drop destinations destroyed since they were added (e.g. mined-out asteroids).
+            foreach (var deadId in DestIds.Where(IsBodyDestroyedId).ToList())
+                RemoveDest(deadId);
 
             var ge = GravityEngine.Instance();
             if (ge == null) { refreshing = false; if (CalcOverlayGO != null) CalcOverlayGO.SetActive(false); return; }

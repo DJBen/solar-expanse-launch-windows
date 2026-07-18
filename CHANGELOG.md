@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - **Presets dropdown** replaces the My Bases button. Contains My Bases plus one entry per in-game celestial body group (`ObjectInfoGroups`): Near-Earth Objects, Inner Belt, Middle Belt, Outer Belt, Jupiter Trojans, Kuiper Belt, etc. — the same classification the game's search window uses, listed sunward-out. Clicking a preset adds every group member known to the ephemeris.
 - **Clear** button in the panel header removes all destinations at once.
+### Fixed
+- Destroyed bodies (`ObjectInfo.IsInGameDestroy` — impacted, nuked, or mined-out asteroids like EX0-99) are now hidden from presets, search results, and the origin dropdown, and are auto-removed from the destination table on refresh.
 
 ## [1.2.6] - 2026-07-03
 ### Fixed
