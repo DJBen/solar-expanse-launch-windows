@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Clear** button in the panel header removes all destinations at once.
 ### Changed
 - Removed the status line ("Updated…", "Calculating…", "Added N…") between the header and the table; the full-panel Calculating overlay already covers refresh feedback.
-- All panel text enlarged by 1pt (labels 9→10, rows 10→11, tooltips 8→9, etc.); tight header rows given matching extra height.
+- Entire UI enlarged ~1.5×: fonts (labels 15pt, row values 16pt, tooltips 13pt), panel 650×380→975×570, and all column widths, row heights, dropdowns, toasts, and the toggle button scaled proportionally.
 - Per-row × delete button moved from the name cell to the trailing edge of the row.
 ### Fixed
 - Departure column widened (62→72 / 70→80 px) so the sort arrow ("Departs ▲/▼") is no longer ellipsized at the larger font size.

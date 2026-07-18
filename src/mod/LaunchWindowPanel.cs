@@ -538,7 +538,7 @@ namespace SolarExpanseLaunchWindows
             var go  = new GameObject("Item", typeof(RectTransform));
             go.transform.SetParent(content, false);
             var le  = go.AddComponent<LayoutElement>();
-            le.preferredHeight = 20f;
+            le.preferredHeight = 30f;
             var bg  = go.AddComponent<Image>();
             bg.color = new Color(0.12f, 0.14f, 0.17f, 0.9f);
             var btn = go.AddComponent<Button>();
@@ -552,11 +552,11 @@ namespace SolarExpanseLaunchWindows
             lbl.transform.SetParent(go.transform, false);
             var lblRT = lbl.GetComponent<RectTransform>();
             lblRT.anchorMin = Vector2.zero; lblRT.anchorMax = Vector2.one;
-            lblRT.sizeDelta = new Vector2(-6f, 0f);
+            lblRT.sizeDelta = new Vector2(-9f, 0f);
             var tmp = lbl.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) tmp.font = FontAsset;
             tmp.text               = label;
-            tmp.fontSize           = 11f;
+            tmp.fontSize           = 16f;
             tmp.alignment          = TextAlignmentOptions.Left;
             tmp.color              = dimmed ? new Color(0.6f, 0.6f, 0.6f) : Color.white;
             tmp.enableWordWrapping = false;
@@ -1218,18 +1218,18 @@ namespace SolarExpanseLaunchWindows
         // Sub-column widths — must match injector sub-header widths exactly.
         // Optimal: dep=62 (cb 12 + text 50), dv=78, tvl=flex (within 255px group)
         // Fastest: dep=70, dv=88, tvl=flex (within 255px group)
-        private const float CB_W       = 12f;
-        private const float OPT_DEP_W  = 72f;
-        private const float OPT_DV_W   = 78f;
-        private const float FST_DEP_W  = 80f;
-        private const float FST_DV_W   = 88f;
+        private const float CB_W       = 18f;
+        private const float OPT_DEP_W  = 108f;
+        private const float OPT_DV_W   = 117f;
+        private const float FST_DEP_W  = 120f;
+        private const float FST_DV_W   = 132f;
 
         private void CreateRow(string dId)
         {
-            // Container is a VLG holding primary row (20px) + next-window row (15px).
+            // Container is a VLG holding primary row (30px) + next-window row (23px).
             var container = new GameObject("Row_" + dId, typeof(RectTransform));
             container.transform.SetParent(ContentParent, false);
-            container.AddComponent<LayoutElement>().preferredHeight = 35f;
+            container.AddComponent<LayoutElement>().preferredHeight = 53f;
             var containerVLG = container.AddComponent<VerticalLayoutGroup>();
             containerVLG.childControlHeight = true; containerVLG.childControlWidth = true;
             containerVLG.childForceExpandHeight = false; containerVLG.childForceExpandWidth = true;
@@ -1238,7 +1238,7 @@ namespace SolarExpanseLaunchWindows
             // ── Primary row ──────────────────────────────────────────────────────────
             var row1 = new GameObject("R1", typeof(RectTransform));
             row1.transform.SetParent(container.transform, false);
-            row1.AddComponent<LayoutElement>().preferredHeight = 20f;
+            row1.AddComponent<LayoutElement>().preferredHeight = 30f;
 
             var inner = new GameObject("HLG", typeof(RectTransform));
             inner.transform.SetParent(row1.transform, false);
@@ -1270,10 +1270,10 @@ namespace SolarExpanseLaunchWindows
                 }
             }
 
-            // Name cell (105px): icon (12px) + name label/btn (flex)
+            // Name cell (158px): icon (18px) + name label/btn (flex)
             var nameCell = new GameObject("NameCell", typeof(RectTransform));
             nameCell.transform.SetParent(inner.transform, false);
-            nameCell.AddComponent<LayoutElement>().preferredWidth = 105f;
+            nameCell.AddComponent<LayoutElement>().preferredWidth = 158f;
             var nHlg = nameCell.AddComponent<HorizontalLayoutGroup>();
             nHlg.childControlHeight = true; nHlg.childControlWidth = true;
             nHlg.childForceExpandHeight = true; nHlg.childForceExpandWidth = false;
@@ -1282,7 +1282,7 @@ namespace SolarExpanseLaunchWindows
             // Icon slot (12px)
             var iconGO  = new GameObject("Icon", typeof(RectTransform));
             iconGO.transform.SetParent(nameCell.transform, false);
-            iconGO.AddComponent<LayoutElement>().preferredWidth = 12f;
+            iconGO.AddComponent<LayoutElement>().preferredWidth = 18f;
             var iconImg = iconGO.AddComponent<Image>();
             if (bodyIcon != null) { iconImg.sprite = bodyIcon; iconImg.preserveAspect = true; }
             else                  { iconImg.color = Color.clear; }
@@ -1312,7 +1312,7 @@ namespace SolarExpanseLaunchWindows
             nameLblRT.anchorMin = Vector2.zero; nameLblRT.anchorMax = Vector2.one; nameLblRT.sizeDelta = Vector2.zero;
             var nameTMP = nameLblGO.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) nameTMP.font = FontAsset;
-            nameTMP.text = displayName; nameTMP.fontSize = 11f;
+            nameTMP.text = displayName; nameTMP.fontSize = 16f;
             nameTMP.alignment = TextAlignmentOptions.Left; nameTMP.color = Color.white;
             nameTMP.enableWordWrapping = false; nameTMP.overflowMode = TextOverflowModes.Ellipsis;
             nameTMP.raycastTarget = false;
@@ -1321,7 +1321,7 @@ namespace SolarExpanseLaunchWindows
             // Optimal group: [cb+dep | dv | tvl]  |gap|  Fastest: [dep | dv | tvl]
             var oGroup = new GameObject("OptCol", typeof(RectTransform));
             oGroup.transform.SetParent(inner.transform, false);
-            oGroup.AddComponent<LayoutElement>().preferredWidth = 255f;
+            oGroup.AddComponent<LayoutElement>().preferredWidth = 383f;
             var oHlg = oGroup.AddComponent<HorizontalLayoutGroup>();
             oHlg.childControlHeight = true; oHlg.childControlWidth = true;
             oHlg.childForceExpandHeight = true; oHlg.childForceExpandWidth = false;
@@ -1335,18 +1335,18 @@ namespace SolarExpanseLaunchWindows
             oDHlg.childForceExpandHeight = true; oDHlg.childForceExpandWidth = false;
             oDHlg.spacing = 0f;
             var cb1 = MakeCheckboxButton(oDCell.transform);
-            var oD  = MakeColLabel(oDCell.transform, "—", 11f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
-            var oDv  = MakeColLabel(oGroup.transform, "—", 11f, TextAlignmentOptions.Left, OPT_DV_W);
-            var oTvl = MakeColLabel(oGroup.transform, "—", 11f, TextAlignmentOptions.Left, 0f, flex: true);
+            var oD  = MakeColLabel(oDCell.transform, "—", 16f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
+            var oDv  = MakeColLabel(oGroup.transform, "—", 16f, TextAlignmentOptions.Left, OPT_DV_W);
+            var oTvl = MakeColLabel(oGroup.transform, "—", 16f, TextAlignmentOptions.Left, 0f, flex: true);
             var sep1 = new GameObject("Sep", typeof(RectTransform));
             sep1.transform.SetParent(inner.transform, false);
-            sep1.AddComponent<LayoutElement>().preferredWidth = 8f;
+            sep1.AddComponent<LayoutElement>().preferredWidth = 12f;
             // Fastest group — inline with checkbox, matching optimal group structure
             var fGroup = new GameObject("FstCol", typeof(RectTransform));
             fGroup.transform.SetParent(inner.transform, false);
-            // 14px narrower than the sub-header's 255 to make room for the trailing ×;
+            // 21px narrower than the sub-header's 383 to make room for the trailing ×;
             // only the flex travel column shrinks, so dep/dv stay aligned.
-            fGroup.AddComponent<LayoutElement>().preferredWidth = 241f;
+            fGroup.AddComponent<LayoutElement>().preferredWidth = 362f;
             var fHlg = fGroup.AddComponent<HorizontalLayoutGroup>();
             fHlg.childControlHeight = true; fHlg.childControlWidth = true;
             fHlg.childForceExpandHeight = true; fHlg.childForceExpandWidth = false;
@@ -1359,14 +1359,14 @@ namespace SolarExpanseLaunchWindows
             fDHlg.childForceExpandHeight = true; fDHlg.childForceExpandWidth = false;
             fDHlg.spacing = 0f;
             var fstCb1 = MakeCheckboxButton(fDCell.transform);
-            var fD     = MakeColLabel(fDCell.transform, "—", 11f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
-            var fDv    = MakeColLabel(fGroup.transform, "—", 11f, TextAlignmentOptions.Left, FST_DV_W);
-            var fTvl   = MakeColLabel(fGroup.transform, "—", 11f, TextAlignmentOptions.Left, 0f, flex: true);
+            var fD     = MakeColLabel(fDCell.transform, "—", 16f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
+            var fDv    = MakeColLabel(fGroup.transform, "—", 16f, TextAlignmentOptions.Left, FST_DV_W);
+            var fTvl   = MakeColLabel(fGroup.transform, "—", 16f, TextAlignmentOptions.Left, 0f, flex: true);
 
-            // Trailing × delete button (14px, far right of the primary row)
+            // Trailing × delete button (21px, far right of the primary row)
             var xGO  = new GameObject("X", typeof(RectTransform));
             xGO.transform.SetParent(inner.transform, false);
-            xGO.AddComponent<LayoutElement>().preferredWidth = 14f;
+            xGO.AddComponent<LayoutElement>().preferredWidth = 21f;
             var xImg = xGO.AddComponent<Image>(); xImg.color = new Color(0.35f, 0.06f, 0.06f, 0.55f);
             var xBtn = xGO.AddComponent<Button>(); xBtn.targetGraphic = xImg;
             var xC   = xBtn.colors;
@@ -1382,14 +1382,14 @@ namespace SolarExpanseLaunchWindows
             xLblRT.anchorMin = Vector2.zero; xLblRT.anchorMax = Vector2.one; xLblRT.sizeDelta = Vector2.zero;
             var xTMP = xLbl.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) xTMP.font = FontAsset;
-            xTMP.text = "×"; xTMP.fontSize = 10f; xTMP.alignment = TextAlignmentOptions.Center;
+            xTMP.text = "×"; xTMP.fontSize = 15f; xTMP.alignment = TextAlignmentOptions.Center;
             xTMP.color = new Color(1f, 0.55f, 0.55f); xTMP.enableWordWrapping = false;
             xTMP.raycastTarget = false;
 
-            // ── Next-window row (dimmed, 15px) ───────────────────────────────────────
+            // ── Next-window row (dimmed, 23px) ───────────────────────────────────────
             var row2 = new GameObject("R2", typeof(RectTransform));
             row2.transform.SetParent(container.transform, false);
-            row2.AddComponent<LayoutElement>().preferredHeight = 15f;
+            row2.AddComponent<LayoutElement>().preferredHeight = 23f;
 
             var inner2 = new GameObject("HLG2", typeof(RectTransform));
             inner2.transform.SetParent(row2.transform, false);
@@ -1401,16 +1401,16 @@ namespace SolarExpanseLaunchWindows
             hlg2.childForceExpandHeight = true; hlg2.childForceExpandWidth = false;
             hlg2.spacing = 0f;
 
-            // Blank name placeholder (105px)
+            // Blank name placeholder (158px)
             var ns = new GameObject("NS", typeof(RectTransform));
             ns.transform.SetParent(inner2.transform, false);
-            ns.AddComponent<LayoutElement>().preferredWidth = 105f;
+            ns.AddComponent<LayoutElement>().preferredWidth = 158f;
 
             Color dimC = new Color(0.50f, 0.50f, 0.50f);
-            // Row-2 opt group: 255px container mirrors row1's oGroup so flex tvl consumes same width.
+            // Row-2 opt group: 383px container mirrors row1's oGroup so flex tvl consumes same width.
             var noOGroup = new GameObject("OptCol2", typeof(RectTransform));
             noOGroup.transform.SetParent(inner2.transform, false);
-            noOGroup.AddComponent<LayoutElement>().preferredWidth = 255f;
+            noOGroup.AddComponent<LayoutElement>().preferredWidth = 383f;
             var noOHlg = noOGroup.AddComponent<HorizontalLayoutGroup>();
             noOHlg.childControlHeight = true; noOHlg.childControlWidth = true;
             noOHlg.childForceExpandHeight = true; noOHlg.childForceExpandWidth = false;
@@ -1424,16 +1424,16 @@ namespace SolarExpanseLaunchWindows
             noD2Hlg.childForceExpandHeight = true; noD2Hlg.childForceExpandWidth = false;
             noD2Hlg.spacing = 0f;
             var cb2 = MakeCheckboxButton(noD2Cell.transform, forRow2: true);
-            var noD  = MakeColLabel(noD2Cell.transform, "—", 10f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W, dimC);
-            var noDv = MakeColLabel(noOGroup.transform, "—", 10f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
-            var noTvl = MakeColLabel(noOGroup.transform, "—", 10f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
+            var noD  = MakeColLabel(noD2Cell.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W, dimC);
+            var noDv = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
+            var noTvl = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
             var sep2 = new GameObject("Sep2", typeof(RectTransform));
             sep2.transform.SetParent(inner2.transform, false);
-            sep2.AddComponent<LayoutElement>().preferredWidth = 8f;
-            // Row-2 fst group: 255px container mirrors row1's fGroup so Fastest checkbox lands at same x.
+            sep2.AddComponent<LayoutElement>().preferredWidth = 12f;
+            // Row-2 fst group: 383px container mirrors row1's fGroup so Fastest checkbox lands at same x.
             var noFGroup = new GameObject("FstCol2", typeof(RectTransform));
             noFGroup.transform.SetParent(inner2.transform, false);
-            noFGroup.AddComponent<LayoutElement>().preferredWidth = 255f;
+            noFGroup.AddComponent<LayoutElement>().preferredWidth = 383f;
             var noFHlg = noFGroup.AddComponent<HorizontalLayoutGroup>();
             noFHlg.childControlHeight = true; noFHlg.childControlWidth = true;
             noFHlg.childForceExpandHeight = true; noFHlg.childForceExpandWidth = false;
@@ -1446,9 +1446,9 @@ namespace SolarExpanseLaunchWindows
             nfDHlg.childForceExpandHeight = true; nfDHlg.childForceExpandWidth = false;
             nfDHlg.spacing = 0f;
             var fstCb2 = MakeCheckboxButton(nfDCell.transform, forRow2: true);
-            var nfD   = MakeColLabel(nfDCell.transform, "—", 10f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
-            var nfDv  = MakeColLabel(noFGroup.transform, "—", 10f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
-            var nfTvl = MakeColLabel(noFGroup.transform, "—", 10f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
+            var nfD   = MakeColLabel(nfDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
+            var nfDv  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
+            var nfTvl = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, 0f, dimC, flex: true);
 
             // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
             // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
@@ -1468,16 +1468,16 @@ namespace SolarExpanseLaunchWindows
         {
             var go = new GameObject("Col", typeof(RectTransform));
             go.transform.SetParent(parent, false);
-            go.AddComponent<LayoutElement>().preferredWidth = 255f;
+            go.AddComponent<LayoutElement>().preferredWidth = 383f;
             var hlg = go.AddComponent<HorizontalLayoutGroup>();
             hlg.childControlHeight = true; hlg.childControlWidth = true;
             hlg.childForceExpandHeight = true; hlg.childForceExpandWidth = false;
             hlg.spacing = 0f;
             float depW = isOptimal ? OPT_DEP_W : FST_DEP_W;
             float dvW  = isOptimal ? OPT_DV_W  : FST_DV_W;
-            var dep = MakeColLabel(go.transform, "—", 11f, TextAlignmentOptions.Left, depW);
-            dvTMP   = MakeColLabel(go.transform, "—", 11f, TextAlignmentOptions.Left, dvW);
-            tvlTMP  = MakeColLabel(go.transform, "—", 11f, TextAlignmentOptions.Left, 0f, flex: true);
+            var dep = MakeColLabel(go.transform, "—", 16f, TextAlignmentOptions.Left, depW);
+            dvTMP   = MakeColLabel(go.transform, "—", 16f, TextAlignmentOptions.Left, dvW);
+            tvlTMP  = MakeColLabel(go.transform, "—", 16f, TextAlignmentOptions.Left, 0f, flex: true);
             return dep;
         }
 
@@ -1727,18 +1727,18 @@ namespace SolarExpanseLaunchWindows
             toastGO.AddComponent<LayoutElement>().ignoreLayout = true;
             var toastRT = toastGO.GetComponent<RectTransform>();
             toastRT.anchorMin = new Vector2(0.5f, 0f); toastRT.anchorMax = new Vector2(0.5f, 0f);
-            toastRT.pivot = new Vector2(0.5f, 0f); toastRT.sizeDelta = new Vector2(320f, 48f);
-            toastRT.anchoredPosition = new Vector2(0f, 60f);
+            toastRT.pivot = new Vector2(0.5f, 0f); toastRT.sizeDelta = new Vector2(480f, 72f);
+            toastRT.anchoredPosition = new Vector2(0f, 90f);
             var bg = toastGO.AddComponent<Image>(); bg.color = new Color(0.05f, 0.50f, 0.58f, 0.95f); bg.raycastTarget = true;
             var hlg = toastGO.AddComponent<HorizontalLayoutGroup>();
             hlg.childControlHeight = true; hlg.childControlWidth = true;
             hlg.childForceExpandHeight = true; hlg.childForceExpandWidth = false;
-            hlg.padding = new RectOffset(8, 2, 4, 4); hlg.spacing = 6f;
+            hlg.padding = new RectOffset(12, 3, 6, 6); hlg.spacing = 9f;
 
             void AddIcon(Sprite spr) {
                 var iGO = new GameObject("Ic", typeof(RectTransform));
                 iGO.transform.SetParent(toastGO.transform, false);
-                iGO.AddComponent<LayoutElement>().preferredWidth = 24f;
+                iGO.AddComponent<LayoutElement>().preferredWidth = 36f;
                 var img = iGO.AddComponent<Image>();
                 img.raycastTarget = false;
                 if (spr != null) { img.sprite = spr; img.preserveAspect = true; }
@@ -1752,21 +1752,21 @@ namespace SolarExpanseLaunchWindows
             msgGO.AddComponent<LayoutElement>().flexibleWidth = 1f;
             var msgTMP = msgGO.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) msgTMP.font = FontAsset;
-            msgTMP.text = richText; msgTMP.fontSize = 11f;
+            msgTMP.text = richText; msgTMP.fontSize = 16f;
             msgTMP.color = Color.white; msgTMP.alignment = TextAlignmentOptions.Left;
             msgTMP.enableWordWrapping = false; msgTMP.overflowMode = TextOverflowModes.Ellipsis;
             msgTMP.richText = true; msgTMP.raycastTarget = false;
 
             var closeGO = new GameObject("X", typeof(RectTransform));
             closeGO.transform.SetParent(toastGO.transform, false);
-            closeGO.AddComponent<LayoutElement>().preferredWidth = 24f;
+            closeGO.AddComponent<LayoutElement>().preferredWidth = 36f;
             var cImg = closeGO.AddComponent<Image>(); cImg.color = new Color(1f, 1f, 1f, 0.08f);
             var cBtn = closeGO.AddComponent<Button>(); cBtn.targetGraphic = cImg;
             var capT = toastGO; cBtn.onClick.AddListener(() => Destroy(capT));
             var cLbl = new GameObject("L", typeof(RectTransform)); cLbl.transform.SetParent(closeGO.transform, false);
             var cLblRT = cLbl.GetComponent<RectTransform>(); cLblRT.anchorMin = Vector2.zero; cLblRT.anchorMax = Vector2.one; cLblRT.sizeDelta = Vector2.zero;
             var cTMP = cLbl.AddComponent<TextMeshProUGUI>(); if (FontAsset != null) cTMP.font = FontAsset;
-            cTMP.text = "×"; cTMP.fontSize = 15f; cTMP.alignment = TextAlignmentOptions.Center;
+            cTMP.text = "×"; cTMP.fontSize = 22f; cTMP.alignment = TextAlignmentOptions.Center;
             cTMP.color = Color.white; cTMP.raycastTarget = false; cTMP.enableWordWrapping = false;
         }
 
@@ -1783,8 +1783,8 @@ namespace SolarExpanseLaunchWindows
             toastRT.anchorMin        = new Vector2(0.5f, 0f);
             toastRT.anchorMax        = new Vector2(0.5f, 0f);
             toastRT.pivot            = new Vector2(0.5f, 0f);
-            toastRT.sizeDelta        = new Vector2(300f, 40f);
-            toastRT.anchoredPosition = new Vector2(0f, 60f);
+            toastRT.sizeDelta        = new Vector2(450f, 60f);
+            toastRT.anchoredPosition = new Vector2(0f, 90f);
 
             var bg = toastGO.AddComponent<Image>();
             bg.color = new Color(0.05f, 0.50f, 0.58f, 0.95f);
@@ -1793,21 +1793,21 @@ namespace SolarExpanseLaunchWindows
             var hlg = toastGO.AddComponent<HorizontalLayoutGroup>();
             hlg.childControlHeight = true; hlg.childControlWidth = true;
             hlg.childForceExpandHeight = true; hlg.childForceExpandWidth = false;
-            hlg.padding = new RectOffset(8, 2, 4, 4); hlg.spacing = 4f;
+            hlg.padding = new RectOffset(12, 3, 6, 6); hlg.spacing = 6f;
 
             var msgGO = new GameObject("Msg", typeof(RectTransform));
             msgGO.transform.SetParent(toastGO.transform, false);
             msgGO.AddComponent<LayoutElement>().flexibleWidth = 1f;
             var msgTMP = msgGO.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) msgTMP.font = FontAsset;
-            msgTMP.text = message; msgTMP.fontSize = 12f;
+            msgTMP.text = message; msgTMP.fontSize = 18f;
             msgTMP.color = Color.white; msgTMP.alignment = TextAlignmentOptions.Left;
             msgTMP.enableWordWrapping = false; msgTMP.overflowMode = TextOverflowModes.Ellipsis;
             msgTMP.raycastTarget = false;
 
             var closeGO = new GameObject("X", typeof(RectTransform));
             closeGO.transform.SetParent(toastGO.transform, false);
-            var closeLE = closeGO.AddComponent<LayoutElement>(); closeLE.preferredWidth = 24f;
+            var closeLE = closeGO.AddComponent<LayoutElement>(); closeLE.preferredWidth = 36f;
             var closeImg = closeGO.AddComponent<Image>(); closeImg.color = new Color(1f, 1f, 1f, 0.08f);
             var closeBtn = closeGO.AddComponent<Button>(); closeBtn.targetGraphic = closeImg;
             var cc = closeBtn.colors; cc.highlightedColor = new Color(1f, 1f, 1f, 0.25f); closeBtn.colors = cc;
@@ -1819,7 +1819,7 @@ namespace SolarExpanseLaunchWindows
             clRT.anchorMin = Vector2.zero; clRT.anchorMax = Vector2.one; clRT.sizeDelta = Vector2.zero;
             var closeTMP = closeLbl.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) closeTMP.font = FontAsset;
-            closeTMP.text = "×"; closeTMP.fontSize = 15f;
+            closeTMP.text = "×"; closeTMP.fontSize = 22f;
             closeTMP.alignment = TextAlignmentOptions.Center;
             closeTMP.color = Color.white; closeTMP.raycastTarget = false; closeTMP.enableWordWrapping = false;
         }
@@ -1835,7 +1835,7 @@ namespace SolarExpanseLaunchWindows
         {
             var go  = new GameObject("CB", typeof(RectTransform));
             go.transform.SetParent(parent, false);
-            go.AddComponent<LayoutElement>().preferredWidth = 12f;
+            go.AddComponent<LayoutElement>().preferredWidth = 18f;
             var img = go.AddComponent<Image>(); img.color = CbUncheckedBg;
             var btn = go.AddComponent<Button>(); btn.targetGraphic = img;
             var cols = btn.colors; cols.highlightedColor = new Color(0.15f, 0.28f, 0.32f, 0.9f); btn.colors = cols;
@@ -1845,7 +1845,7 @@ namespace SolarExpanseLaunchWindows
             lblRT.anchorMin = Vector2.zero; lblRT.anchorMax = Vector2.one; lblRT.sizeDelta = Vector2.zero;
             var tmp = lbl.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) tmp.font = FontAsset;
-            tmp.text = "□"; tmp.fontSize = forRow2 ? 8f : 9f;
+            tmp.text = "□"; tmp.fontSize = forRow2 ? 12f : 13f;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = Color.clear; tmp.enableWordWrapping = false; tmp.raycastTarget = false;
             img.color = Color.clear;

@@ -73,7 +73,7 @@ namespace SolarExpanseLaunchWindows.UI
                 panelRT.anchorMin = new Vector2(0.5f, 0.5f);
                 panelRT.anchorMax = new Vector2(0.5f, 0.5f);
                 panelRT.pivot     = new Vector2(0f, 1f);
-                panelRT.sizeDelta = new Vector2(650f, 380f);
+                panelRT.sizeDelta = new Vector2(975f, 570f);
                 panelRT.anchoredPosition = new Vector2(-9999f, -9999f);
 
                 // ── VLG drives all rows ───────────────────────────────────────────────────────
@@ -82,48 +82,48 @@ namespace SolarExpanseLaunchWindows.UI
                 vlg.childControlWidth      = true;
                 vlg.childForceExpandHeight = false;
                 vlg.childForceExpandWidth  = true;
-                vlg.spacing = 1f;
-                vlg.padding = new RectOffset(6, 6, 3, 3);
+                vlg.spacing = 2f;
+                vlg.padding = new RectOffset(9, 9, 5, 5);
 
                 // Row 1: Header (From / Craft / Refresh / ×)
-                var headerGO  = MakeHRow("Header", panelGO.transform, 22f, 3f);
+                var headerGO  = MakeHRow("Header", panelGO.transform, 33f, 5f);
                 var originBtn = MakeButton("OriginBtn", headerGO.transform, font, "From: — ▼",
-                    expandWidth: true, height: 18f,
+                    expandWidth: true, height: 27f,
                     bgColor: new Color(0.06f, 0.16f, 0.22f, 0.55f));
 
                 var craftBtn = MakeButton("CraftBtn", headerGO.transform, font, "Craft: — ▼",
-                    expandWidth: true, height: 18f,
+                    expandWidth: true, height: 27f,
                     bgColor: new Color(0.06f, 0.16f, 0.22f, 0.55f));
 
                 var clearBtn = MakeButton("ClearBtn", headerGO.transform, font, "Clear",
-                    fixedWidth: 40f, height: 18f,
+                    fixedWidth: 60f, height: 27f,
                     bgColor: new Color(0.10f, 0.12f, 0.15f, 0.0f),
                     hoverColor: new Color(0.55f, 0.10f, 0.10f, 0.8f));
                 AddTooltip(clearBtn.gameObject, "Remove all destinations from the list.");
                 MakeButton("RefreshBtn", headerGO.transform, font, "Refresh",
-                    fixedWidth: 52f, height: 18f,
+                    fixedWidth: 78f, height: 27f,
                     bgColor: new Color(0.10f, 0.12f, 0.15f, 0.0f));
                 var closeBtn = MakeButton("CloseBtn", headerGO.transform, font, "×",
-                    fixedWidth: 20f, height: 18f,
+                    fixedWidth: 30f, height: 27f,
                     bgColor: new Color(0.20f, 0.05f, 0.05f, 0.0f),
                     hoverColor: new Color(0.55f, 0.10f, 0.10f, 0.8f));
 
                 // Row 2: Column headers — use game locale keys so they match the player's language.
-                var colHdrGO = MakeHRow("ColHdr", panelGO.transform, 15f, 0f);
-                MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 10f, 105f, TextAlignmentOptions.Left, bold: true);
-                // 12px spacer + 243px label keeps OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
-                MakeColLabel("CHNT1", colHdrGO.transform, font, "", 10f, 12f, TextAlignmentOptions.Left);
-                MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 10f, 243f, TextAlignmentOptions.Left, bold: true);
-                MakeColLabel("CHSep", colHdrGO.transform, font, "", 10f, 8f, TextAlignmentOptions.Left);
-                MakeColLabel("CHNT2", colHdrGO.transform, font, "", 10f, 12f, TextAlignmentOptions.Left);
-                MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 10f, 243f, TextAlignmentOptions.Left, bold: true);
+                var colHdrGO = MakeHRow("ColHdr", panelGO.transform, 22f, 0f);
+                MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 15f, 158f, TextAlignmentOptions.Left, bold: true);
+                // 18px spacer + 365px label keeps OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
+                MakeColLabel("CHNT1", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
+                MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 15f, 365f, TextAlignmentOptions.Left, bold: true);
+                MakeColLabel("CHSep", colHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
+                MakeColLabel("CHNT2", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
+                MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 15f, 365f, TextAlignmentOptions.Left, bold: true);
 
                 // Row 4: Sub-header — cells must match LaunchWindowPanel OPT_*/FST_* constants.
-                // Optimal: dep=72 dv=78 tvl=flex; Fastest: dep=80 dv=88 tvl=flex
-                var subHdrGO = MakeHRow("SubHdr", panelGO.transform, 14f, 0f);
-                MakeColLabel("SH0", subHdrGO.transform, font, "", 10f, 105f, TextAlignmentOptions.Left, muted: true);
+                // Optimal: dep=108 dv=117 tvl=flex; Fastest: dep=120 dv=132 tvl=flex
+                var subHdrGO = MakeHRow("SubHdr", panelGO.transform, 21f, 0f);
+                MakeColLabel("SH0", subHdrGO.transform, font, "", 15f, 158f, TextAlignmentOptions.Left, muted: true);
                 var (optDepBtn, optDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: true);
-                MakeColLabel("SHSep", subHdrGO.transform, font, "", 10f, 8f, TextAlignmentOptions.Left);
+                MakeColLabel("SHSep", subHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
                 var (fstDepBtn, fstDepTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: false);
 
                 // Divider
@@ -133,7 +133,7 @@ namespace SolarExpanseLaunchWindows.UI
                 var scrollGO = new GameObject("Scroll", typeof(RectTransform));
                 scrollGO.transform.SetParent(panelGO.transform, false);
                 var scrollLE = scrollGO.AddComponent<LayoutElement>();
-                scrollLE.minHeight     = 30f;
+                scrollLE.minHeight     = 45f;
                 scrollLE.flexibleHeight = 1f;
 
                 // Scrollbar (5px, right edge)
@@ -142,7 +142,7 @@ namespace SolarExpanseLaunchWindows.UI
                 var sbRT = sbGO.GetComponent<RectTransform>();
                 sbRT.anchorMin = new Vector2(1f, 0f); sbRT.anchorMax = new Vector2(1f, 1f);
                 sbRT.pivot = new Vector2(1f, 0.5f);
-                sbRT.sizeDelta = new Vector2(5f, 0f); sbRT.anchoredPosition = Vector2.zero;
+                sbRT.sizeDelta = new Vector2(8f, 0f); sbRT.anchoredPosition = Vector2.zero;
                 sbGO.AddComponent<Image>().color = new Color(0.06f, 0.08f, 0.10f, 0.9f);
                 var sbComp = sbGO.AddComponent<Scrollbar>();
                 sbComp.direction = Scrollbar.Direction.BottomToTop;
@@ -162,7 +162,7 @@ namespace SolarExpanseLaunchWindows.UI
                 vpGO.transform.SetParent(scrollGO.transform, false);
                 var vpRT = vpGO.GetComponent<RectTransform>();
                 vpRT.anchorMin = Vector2.zero; vpRT.anchorMax = Vector2.one;
-                vpRT.offsetMin = Vector2.zero; vpRT.offsetMax = new Vector2(-7f, 0f);
+                vpRT.offsetMin = Vector2.zero; vpRT.offsetMax = new Vector2(-10f, 0f);
                 vpGO.AddComponent<RectMask2D>();
 
                 // Content
@@ -174,7 +174,7 @@ namespace SolarExpanseLaunchWindows.UI
                 var contentVLG = contentGO.AddComponent<VerticalLayoutGroup>();
                 contentVLG.childControlHeight = true; contentVLG.childControlWidth = true;
                 contentVLG.childForceExpandHeight = false; contentVLG.childForceExpandWidth = true;
-                contentVLG.spacing = 1f; contentVLG.padding = new RectOffset(2, 2, 2, 2);
+                contentVLG.spacing = 2f; contentVLG.padding = new RectOffset(3, 3, 3, 3);
                 contentGO.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
                 var scrollRect = scrollGO.AddComponent<ScrollRect>();
@@ -188,14 +188,14 @@ namespace SolarExpanseLaunchWindows.UI
                 Divider("Div2", panelGO.transform);
 
                 // Search row
-                var searchRowGO = MakeHRow("SearchRow", panelGO.transform, 18f, 4f);
-                MakeColLabel("SrchLbl", searchRowGO.transform, font, "+ Add:", 10f, 38f, TextAlignmentOptions.Right, muted: true);
+                var searchRowGO = MakeHRow("SearchRow", panelGO.transform, 27f, 6f);
+                MakeColLabel("SrchLbl", searchRowGO.transform, font, "+ Add:", 15f, 57f, TextAlignmentOptions.Right, muted: true);
                 var presetsBtn = MakeButton("PresetsBtn", searchRowGO.transform, font, "Presets ▼",
-                    fixedWidth: 62f, height: 18f,
+                    fixedWidth: 93f, height: 27f,
                     bgColor: new Color(0.06f, 0.18f, 0.10f, 0.55f),
                     hoverColor: new Color(0.10f, 0.32f, 0.16f, 0.80f));
                 AddTooltip(presetsBtn.gameObject, "Add a preset group of destinations: My Bases (bodies with a built facility), or any of the game's celestial body groups (Near-Earth Objects, Inner/Middle/Outer Belt, Jupiter Trojans, Kuiper Belt…).");
-                var searchInput = MakeInputField("SearchField", searchRowGO.transform, font, "Search bodies…", 18f);
+                var searchInput = MakeInputField("SearchField", searchRowGO.transform, font, "Search bodies…", 27f);
 
                 // Calculating overlay — full-panel, shown during refresh
                 var calcOverlayGO = new GameObject("CalcOverlay", typeof(RectTransform));
@@ -215,7 +215,7 @@ namespace SolarExpanseLaunchWindows.UI
                 var calcTMP = calcLbl.AddComponent<TextMeshProUGUI>();
                 if (font != null) calcTMP.font = font;
                 calcTMP.text = "Calculating…";
-                calcTMP.fontSize = 19f;
+                calcTMP.fontSize = 28f;
                 calcTMP.alignment = TextAlignmentOptions.Center;
                 calcTMP.color = new Color(0.60f, 0.85f, 0.90f);
                 calcTMP.enableWordWrapping = false;
@@ -225,37 +225,37 @@ namespace SolarExpanseLaunchWindows.UI
                 panelGO.SetActive(false);
 
                 // ── Origin dropdown overlay ───────────────────────────────────────────────────
-                var originDropGO = MakeDropdownPanel("LWOriginDropdown", canvas.transform, font, 220f, 230f);
+                var originDropGO = MakeDropdownPanel("LWOriginDropdown", canvas.transform, font, 330f, 345f);
 
-                // Shift viewport down 26px to leave room for the typeahead filter input.
+                // Shift viewport down 39px to leave room for the typeahead filter input.
                 var originVpRT = originDropGO.transform.Find("Viewport")?.GetComponent<RectTransform>();
                 if (originVpRT != null)
                 {
-                    originVpRT.offsetMin = new Vector2(3f, 2f);
-                    originVpRT.offsetMax = new Vector2(-3f, -26f);
+                    originVpRT.offsetMin = new Vector2(4f, 3f);
+                    originVpRT.offsetMax = new Vector2(-4f, -39f);
                 }
 
-                var originFilterField = MakeInputField("OriginFilter", originDropGO.transform, font, "Filter…", 22f);
+                var originFilterField = MakeInputField("OriginFilter", originDropGO.transform, font, "Filter…", 33f);
                 var originFilterRT    = originFilterField.GetComponent<RectTransform>();
                 originFilterRT.anchorMin         = new Vector2(0f, 1f);
                 originFilterRT.anchorMax         = new Vector2(1f, 1f);
                 originFilterRT.pivot             = new Vector2(0.5f, 1f);
-                originFilterRT.sizeDelta         = new Vector2(-6f, 22f);
-                originFilterRT.anchoredPosition  = new Vector2(0f, -2f);
+                originFilterRT.sizeDelta         = new Vector2(-9f, 33f);
+                originFilterRT.anchoredPosition  = new Vector2(0f, -3f);
 
                 originDropGO.SetActive(false);
 
                 // ── Craft dropdown overlay ────────────────────────────────────────────────────
-                var craftDropGO = MakeDropdownPanel("LWCraftDropdown", canvas.transform, font, 280f, 200f);
+                var craftDropGO = MakeDropdownPanel("LWCraftDropdown", canvas.transform, font, 420f, 300f);
                 craftDropGO.SetActive(false);
 
                 // ── Search results overlay ────────────────────────────────────────────────────
-                var searchDropGO = MakeDropdownPanel("LWSearchDropdown", canvas.transform, font, 280f, 160f);
+                var searchDropGO = MakeDropdownPanel("LWSearchDropdown", canvas.transform, font, 420f, 240f);
                 searchDropGO.SetActive(false);
 
                 // ── Presets dropdown overlay ──────────────────────────────────────────────────
                 // My Bases + one item per game ObjectInfoGroups (~8 total); scrolls if more.
-                var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 170f, 176f);
+                var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 255f, 264f);
                 presetsDropGO.SetActive(false);
 
                 // ── Attach panel MonoBehaviour ────────────────────────────────────────────────
@@ -299,7 +299,7 @@ namespace SolarExpanseLaunchWindows.UI
                 indicatorRT.anchorMin = new Vector2(0.5f, 0.5f);
                 indicatorRT.anchorMax = new Vector2(0.5f, 0.5f);
                 indicatorRT.pivot     = new Vector2(0f, 1f);
-                indicatorRT.sizeDelta = new Vector2(120f, 22f);
+                indicatorRT.sizeDelta = new Vector2(180f, 33f);
                 indicatorRT.anchoredPosition = new Vector2(-9999f, -9999f);
 
                 var indicatorBg = indicatorGO.AddComponent<Image>();
@@ -309,7 +309,7 @@ namespace SolarExpanseLaunchWindows.UI
                 else indicatorBg.color = new Color(0.15f, 0.15f, 0.2f, 0.9f);
                 indicatorBg.raycastTarget = true;
 
-                MakeFillLabel(indicatorGO, font, "LAUNCH WINDOWS", 10f);
+                MakeFillLabel(indicatorGO, font, "LAUNCH WINDOWS", 15f);
 
                 var mover = indicatorGO.AddComponent<LWMover>();
                 mover.Bg          = indicatorBg;
@@ -361,7 +361,7 @@ namespace SolarExpanseLaunchWindows.UI
         }
 
         static Button MakeButton(string name, Transform parent, TMP_FontAsset font, string text,
-                                  bool expandWidth = false, float fixedWidth = 0f, float height = 18f,
+                                  bool expandWidth = false, float fixedWidth = 0f, float height = 27f,
                                   Color? bgColor = null, Color? hoverColor = null)
         {
             var go  = new GameObject(name, typeof(RectTransform));
@@ -379,7 +379,7 @@ namespace SolarExpanseLaunchWindows.UI
             le.flexibleHeight  = 0f;
             if (expandWidth) le.flexibleWidth = 1f;
             else             le.preferredWidth = fixedWidth;
-            MakeFillLabel(go, font, text, 10f);
+            MakeFillLabel(go, font, text, 15f);
             return btn;
         }
 
@@ -404,14 +404,14 @@ namespace SolarExpanseLaunchWindows.UI
         // so TMP's ILayoutElement never competes with LayoutElement.preferredWidth.
         static (Button depBtn, TextMeshProUGUI depTMP) MakeSubHdrGroup(Transform parent, TMP_FontAsset font, TMP_FontAsset headerFont, bool isOptimal = false)
         {
-            float ntW      = 12f;
-            float depTextW = isOptimal ? 60f : 68f; // wide enough for "Departs ▲" at 10pt
-            float depCellW = ntW + depTextW; // 72 or 80 — matches OPT_DEP_W / FST_DEP_W
-            float dvW      = isOptimal ? 78f : 88f;
+            float ntW      = 18f;
+            float depTextW = isOptimal ? 90f : 102f; // wide enough for "Departs ▲" at 15pt
+            float depCellW = ntW + depTextW; // 108 or 120 — matches OPT_DEP_W / FST_DEP_W
+            float dvW      = isOptimal ? 117f : 132f;
 
             var go = new GameObject("SubGrp", typeof(RectTransform));
             go.transform.SetParent(parent, false);
-            go.AddComponent<LayoutElement>().preferredWidth = 255f;
+            go.AddComponent<LayoutElement>().preferredWidth = 383f;
             var hlg = go.AddComponent<HorizontalLayoutGroup>();
             hlg.childControlHeight = true; hlg.childControlWidth = true;
             hlg.childForceExpandHeight = true; hlg.childForceExpandWidth = false;
@@ -436,7 +436,7 @@ namespace SolarExpanseLaunchWindows.UI
             ntLblGO.transform.SetParent(ntGO.transform, false);
             var ntLblRT = ntLblGO.GetComponent<RectTransform>();
             ntLblRT.anchorMin = Vector2.zero; ntLblRT.anchorMax = Vector2.one; ntLblRT.sizeDelta = Vector2.zero;
-            var ntTMP = AddTMP(ntLblGO, font, "!", 10f, TextAlignmentOptions.Center, muted: false, bold: true);
+            var ntTMP = AddTMP(ntLblGO, font, "!", 15f, TextAlignmentOptions.Center, muted: false, bold: true);
             ntTMP.color = new Color(0.65f, 0.82f, 0.95f, 0.9f);
 
             // Departs sort button (50/58px) — mirrors row DepText.
@@ -452,12 +452,12 @@ namespace SolarExpanseLaunchWindows.UI
             depLbl.transform.SetParent(depGO.transform, false);
             var depLblRT = depLbl.GetComponent<RectTransform>();
             depLblRT.anchorMin = Vector2.zero; depLblRT.anchorMax = Vector2.one; depLblRT.sizeDelta = Vector2.zero;
-            var depTMP = AddTMP(depLbl, font, "Departs", 10f, TextAlignmentOptions.Left, muted: true);
+            var depTMP = AddTMP(depLbl, font, "Departs", 15f, TextAlignmentOptions.Left, muted: true);
             AddTooltip(depGO, "Departure date. Click column header to sort.");
 
             var dvTMP  = MakeColLabel("V", go.transform, font, "Δv",     10f, dvW, TextAlignmentOptions.Left, muted: true);
             AddTooltip(dvTMP.gameObject, "Estimated fuel cost (km/s). Shown in red when it exceeds your craft's Δv budget.");
-            var tvlTMP = MakeColLabel("T", go.transform, font, "Travel", 10f,  0f, TextAlignmentOptions.Left, muted: true, flex: true);
+            var tvlTMP = MakeColLabel("T", go.transform, font, "Travel", 15f,  0f, TextAlignmentOptions.Left, muted: true, flex: true);
             AddTooltip(tvlTMP.gameObject, "Transfer travel time.");
 
             return (depBtn, depTMP);
@@ -538,8 +538,8 @@ namespace SolarExpanseLaunchWindows.UI
             go.transform.SetParent(parent, false);
             go.AddComponent<Image>().color = new Color(0.3f, 0.3f, 0.3f, 0.8f);
             var le = go.AddComponent<LayoutElement>();
-            le.minHeight       = 1f;
-            le.preferredHeight = 1f;
+            le.minHeight       = 2f;
+            le.preferredHeight = 2f;
             le.flexibleHeight  = 0f;
         }
 
@@ -560,7 +560,7 @@ namespace SolarExpanseLaunchWindows.UI
             vpGO.transform.SetParent(go.transform, false);
             var vpRT = vpGO.GetComponent<RectTransform>();
             vpRT.anchorMin = Vector2.zero; vpRT.anchorMax = Vector2.one;
-            vpRT.sizeDelta = new Vector2(-6f, -4f);
+            vpRT.sizeDelta = new Vector2(-9f, -6f);
             vpGO.AddComponent<RectMask2D>();
 
             var textGO = new GameObject("Text", typeof(RectTransform));
@@ -569,7 +569,7 @@ namespace SolarExpanseLaunchWindows.UI
             textRT.anchorMin = Vector2.zero; textRT.anchorMax = Vector2.one; textRT.sizeDelta = Vector2.zero;
             var textTMP = textGO.AddComponent<TextMeshProUGUI>();
             if (font != null) textTMP.font = font;
-            textTMP.fontSize = 10f; textTMP.color = Color.white;
+            textTMP.fontSize = 15f; textTMP.color = Color.white;
             textTMP.enableWordWrapping = false;
 
             var phGO  = new GameObject("Placeholder", typeof(RectTransform));
@@ -578,7 +578,7 @@ namespace SolarExpanseLaunchWindows.UI
             phRT.anchorMin = Vector2.zero; phRT.anchorMax = Vector2.one; phRT.sizeDelta = Vector2.zero;
             var phTMP = phGO.AddComponent<TextMeshProUGUI>();
             if (font != null) phTMP.font = font;
-            phTMP.fontSize = 10f; phTMP.color = new Color(0.45f, 0.45f, 0.45f);
+            phTMP.fontSize = 15f; phTMP.color = new Color(0.45f, 0.45f, 0.45f);
             phTMP.fontStyle = FontStyles.Italic; phTMP.text = placeholder;
             phTMP.enableWordWrapping = false;
 
@@ -588,7 +588,7 @@ namespace SolarExpanseLaunchWindows.UI
             field.placeholder     = phTMP;
             field.targetGraphic   = bg;
             if (font != null) field.fontAsset = font;
-            field.pointSize       = 10f;
+            field.pointSize       = 15f;
             field.caretColor      = Color.white;
             field.selectionColor  = new Color(0.27f, 0.55f, 0.75f, 0.75f);
             return field;
@@ -612,7 +612,7 @@ namespace SolarExpanseLaunchWindows.UI
             vpGO.transform.SetParent(go.transform, false);
             var vpRT  = vpGO.GetComponent<RectTransform>();
             vpRT.anchorMin = Vector2.zero; vpRT.anchorMax = Vector2.one;
-            vpRT.sizeDelta = new Vector2(-6f, -4f);
+            vpRT.sizeDelta = new Vector2(-9f, -6f);
             vpGO.AddComponent<RectMask2D>();
 
             var contentGO = new GameObject("DropContent", typeof(RectTransform));
@@ -623,7 +623,7 @@ namespace SolarExpanseLaunchWindows.UI
             var contentVLG = contentGO.AddComponent<VerticalLayoutGroup>();
             contentVLG.childControlHeight = true; contentVLG.childControlWidth = true;
             contentVLG.childForceExpandHeight = false; contentVLG.childForceExpandWidth = true;
-            contentVLG.spacing = 1f; contentVLG.padding = new RectOffset(2, 2, 2, 2);
+            contentVLG.spacing = 2f; contentVLG.padding = new RectOffset(3, 3, 3, 3);
             contentGO.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             var sr   = go.AddComponent<ScrollRect>();
@@ -739,7 +739,7 @@ namespace SolarExpanseLaunchWindows.UI
             Vector2 topLeft;
             if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
                     _canvasRT, new Vector2(corners[1].x, corners[1].y), cam, out topLeft)) return;
-            _rt.anchoredPosition = new Vector2(topLeft.x - 4f - _rt.sizeDelta.x, topLeft.y);
+            _rt.anchoredPosition = new Vector2(topLeft.x - 6f - _rt.sizeDelta.x, topLeft.y);
             Clamp();
             StoreNormalizedPos();
             RepositionPanel();
@@ -799,7 +799,7 @@ namespace SolarExpanseLaunchWindows.UI
         void RepositionPanel()
         {
             if (PanelRT == null || PanelGO == null || !PanelGO.activeSelf) return;
-            Vector2 p = new Vector2(_rt.anchoredPosition.x, _rt.anchoredPosition.y - _rt.sizeDelta.y - 4f);
+            Vector2 p = new Vector2(_rt.anchoredPosition.x, _rt.anchoredPosition.y - _rt.sizeDelta.y - 6f);
             if (_canvasRT != null)
             {
                 Rect cr = _canvasRT.rect; Vector2 s = PanelRT.sizeDelta;
@@ -885,7 +885,7 @@ namespace SolarExpanseLaunchWindows.UI
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
                     canvasRT, screenPos, cam, out local))
             {
-                _go.GetComponent<RectTransform>().anchoredPosition = local + new Vector2(12f, -12f);
+                _go.GetComponent<RectTransform>().anchoredPosition = local + new Vector2(18f, -18f);
             }
         }
 
@@ -907,7 +907,7 @@ namespace SolarExpanseLaunchWindows.UI
             bg.raycastTarget = false;
 
             var vlg = _go.AddComponent<VerticalLayoutGroup>();
-            vlg.padding = new RectOffset(5, 5, 3, 3);
+            vlg.padding = new RectOffset(8, 8, 5, 5);
             vlg.childControlHeight = true; vlg.childControlWidth = true;
             vlg.childForceExpandHeight = false; vlg.childForceExpandWidth = true;
 
@@ -919,11 +919,11 @@ namespace SolarExpanseLaunchWindows.UI
             textGO.transform.SetParent(_go.transform, false);
             _tmp = textGO.AddComponent<TextMeshProUGUI>();
             if (_font != null) _tmp.font = _font;
-            _tmp.fontSize           = 9f;
+            _tmp.fontSize           = 13f;
             _tmp.color              = new Color(0.85f, 0.85f, 0.85f);
             _tmp.enableWordWrapping = true;
             _tmp.raycastTarget      = false;
-            textGO.AddComponent<LayoutElement>().preferredWidth = 180f;
+            textGO.AddComponent<LayoutElement>().preferredWidth = 270f;
 
             _go.SetActive(false);
         }
