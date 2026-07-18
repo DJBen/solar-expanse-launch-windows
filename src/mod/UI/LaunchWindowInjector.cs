@@ -95,6 +95,11 @@ namespace SolarExpanseLaunchWindows.UI
                     expandWidth: true, height: 18f,
                     bgColor: new Color(0.06f, 0.16f, 0.22f, 0.55f));
 
+                var clearBtn = MakeButton("ClearBtn", headerGO.transform, font, "Clear",
+                    fixedWidth: 40f, height: 18f,
+                    bgColor: new Color(0.10f, 0.12f, 0.15f, 0.0f),
+                    hoverColor: new Color(0.55f, 0.10f, 0.10f, 0.8f));
+                AddTooltip(clearBtn.gameObject, "Remove all destinations from the list.");
                 MakeButton("RefreshBtn", headerGO.transform, font, "Refresh",
                     fixedWidth: 52f, height: 18f,
                     bgColor: new Color(0.10f, 0.12f, 0.15f, 0.0f));
@@ -189,11 +194,11 @@ namespace SolarExpanseLaunchWindows.UI
                 // Search row
                 var searchRowGO = MakeHRow("SearchRow", panelGO.transform, 18f, 4f);
                 MakeColLabel("SrchLbl", searchRowGO.transform, font, "+ Add:", 9f, 38f, TextAlignmentOptions.Right, muted: true);
-                var basesBtn = MakeButton("BasesBtn", searchRowGO.transform, font, "My Bases",
+                var presetsBtn = MakeButton("PresetsBtn", searchRowGO.transform, font, "Presets ▼",
                     fixedWidth: 62f, height: 18f,
                     bgColor: new Color(0.06f, 0.18f, 0.10f, 0.55f),
                     hoverColor: new Color(0.10f, 0.32f, 0.16f, 0.80f));
-                AddTooltip(basesBtn.gameObject, "Adds any body where you have at least one facility built (including parent planet of moons). Probes are excluded.");
+                AddTooltip(presetsBtn.gameObject, "Add a preset group of destinations: My Bases (bodies with a built facility), Near Earth, Inner Belt, or Outer Belt objects.");
                 var searchInput = MakeInputField("SearchField", searchRowGO.transform, font, "Search bodies…", 18f);
 
                 // Calculating overlay — full-panel, shown during refresh
@@ -252,6 +257,11 @@ namespace SolarExpanseLaunchWindows.UI
                 var searchDropGO = MakeDropdownPanel("LWSearchDropdown", canvas.transform, font, 280f, 160f);
                 searchDropGO.SetActive(false);
 
+                // ── Presets dropdown overlay ──────────────────────────────────────────────────
+                // 4 items × 20px + 3 × 1px spacing + 4px padding + 4px viewport margin = 91px.
+                var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 150f, 92f);
+                presetsDropGO.SetActive(false);
+
                 // ── Attach panel MonoBehaviour ────────────────────────────────────────────────
                 var panel = panelGO.AddComponent<LaunchWindowPanel>();
                 panel.StatusTMP     = statusTMP;
@@ -265,6 +275,8 @@ namespace SolarExpanseLaunchWindows.UI
                 panel.OriginFilterInput = originFilterField;
                 panel.CraftDropGO   = craftDropGO;
                 panel.SearchDropGO  = searchDropGO;
+                panel.PresetsDropGO = presetsDropGO;
+                panel.PresetsBtn    = presetsBtn;
                 panel.SearchInput   = searchInput;
 
                 panel.OptDepHdrTMP  = optDepTMP;
@@ -274,7 +286,8 @@ namespace SolarExpanseLaunchWindows.UI
                 closeBtn.onClick.AddListener(panel.ClosePanel);
                 originBtn.onClick.AddListener(panel.ToggleOriginDropdown);
                 craftBtn.onClick.AddListener(panel.ToggleCraftDropdown);
-                basesBtn.onClick.AddListener(panel.AddPresenceBodies);
+                presetsBtn.onClick.AddListener(panel.TogglePresetsDropdown);
+                clearBtn.onClick.AddListener(panel.ClearAllDests);
                 optDepBtn.onClick.AddListener(panel.ToggleSortOptDep);
                 fstDepBtn.onClick.AddListener(panel.ToggleSortFstDep);
 

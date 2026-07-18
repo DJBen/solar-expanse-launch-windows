@@ -31,6 +31,8 @@ namespace SolarExpanseLaunchWindows
         internal GameObject      OriginDropGO;
         internal GameObject      CraftDropGO;
         internal GameObject      SearchDropGO;
+        internal GameObject      PresetsDropGO;
+        internal Button          PresetsBtn;
         internal TMP_InputField  SearchInput;
         internal GameObject      CalcOverlayGO;
         internal TMP_InputField  OriginFilterInput;
@@ -86,6 +88,7 @@ namespace SolarExpanseLaunchWindows
         private bool  needsRefresh;
         private bool  refreshing;
         private bool  originDropOpen;
+        private bool  _presetsDropOpen;
         private HashSet<string> _originShipBodies;
 
         private volatile bool _calcDone;
@@ -161,6 +164,7 @@ namespace SolarExpanseLaunchWindows
             HideOriginDropdown();
             HideCraftDropdown();
             HideSearchDropdown();
+            HidePresetsDropdown();
             gameObject.SetActive(false);
         }
 
@@ -254,6 +258,100 @@ namespace SolarExpanseLaunchWindows
         private void HideSearchDropdown()
         {
             if (SearchDropGO != null) SearchDropGO.SetActive(false);
+        }
+
+        // ── Presets dropdown ──────────────────────────────────────────────────────
+
+        internal void TogglePresetsDropdown()
+        {
+            if (_presetsDropOpen) HidePresetsDropdown();
+            else                  ShowPresetsDropdown();
+        }
+
+        private void ShowPresetsDropdown()
+        {
+            if (PresetsDropGO == null) return;
+            PopulatePresetsDropdown();
+            PositionDropdownBelow(PresetsDropGO, PresetsBtn?.GetComponent<RectTransform>(), below: true);
+            PresetsDropGO.SetActive(true);
+            _presetsDropOpen = true;
+        }
+
+        internal void HidePresetsDropdown()
+        {
+            if (PresetsDropGO != null) PresetsDropGO.SetActive(false);
+            _presetsDropOpen = false;
+        }
+
+        private void PopulatePresetsDropdown()
+        {
+            var content = GetDropContent(PresetsDropGO);
+            if (content == null) return;
+            for (int i = content.childCount - 1; i >= 0; i--)
+                UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
+
+            AddDropdownItem(content, "My Bases", false, () => {
+                HidePresetsDropdown();
+                AddPresenceBodies();
+            });
+            AddDropdownItem(content, "Near Earth Objects", false, () => {
+                HidePresetsDropdown();
+                AddBandBodies(PresetBand.NearEarth, "Near Earth object");
+            });
+            AddDropdownItem(content, "Inner Belt Objects", false, () => {
+                HidePresetsDropdown();
+                AddBandBodies(PresetBand.InnerBelt, "Inner Belt object");
+            });
+            AddDropdownItem(content, "Outer Belt Objects", false, () => {
+                HidePresetsDropdown();
+                AddBandBodies(PresetBand.OuterBelt, "Outer Belt object");
+            });
+        }
+
+        // Adds every asteroid whose semi-major axis (from period, Kepler III) falls in the band.
+        // Earth's period defines 1 AU, so this needs no game-unit → AU conversion.
+        internal void AddBandBodies(PresetBand band, string label)
+        {
+            TryBuildEphem();
+            if (ephem == null) return;
+
+            double earthPeriod = 0.0;
+            var earthId = ephem.AllBodyIds.FirstOrDefault(id =>
+                string.Equals(ephem.GetDisplayName(id), "Earth", StringComparison.OrdinalIgnoreCase));
+            if (earthId != null) earthPeriod = ephem.GetPeriod(earthId);
+            if (earthPeriod <= 0)
+            {
+                Plugin.Log.LogWarning("[LW] AddBandBodies: Earth period unavailable — cannot classify orbits");
+                if (StatusTMP != null) StatusTMP.text = "Cannot classify orbits (Earth not found)";
+                return;
+            }
+
+            int added = 0;
+            foreach (var bodyId in ephem.AllBodyIds)
+            {
+                if (bodyId == OriginId || DestIds.Contains(bodyId)) continue;
+                if (!ephem.IsAsteroid(bodyId)) continue;
+                if (!PresetBands.InBand(band, ephem.GetPeriod(bodyId), earthPeriod)) continue;
+                DestIds.Add(bodyId);
+                _sidecarDirty = true;
+                added++;
+            }
+
+            Plugin.Log.LogInfo($"[LW] AddBandBodies: {band} added {added}");
+            if (added > 0) needsRefresh = true;
+            if (StatusTMP != null)
+                StatusTMP.text = added > 0 ? $"Added {added} {label}(s)" : $"No new {label}s to add";
+        }
+
+        // Removes every destination row (Clear button in the header).
+        internal void ClearAllDests()
+        {
+            int n = DestIds.Count;
+            foreach (var dId in DestIds.ToList())
+                RemoveDest(dId);
+            Plugin.Log.LogInfo($"[LW] ClearAllDests: removed {n}");
+            if (StatusTMP != null)
+                StatusTMP.text = n > 0 ? $"Cleared {n} destination(s)" : "List already empty";
         }
 
         private void PopulateOriginDropdown(string filter = "")

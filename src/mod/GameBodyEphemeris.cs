@@ -97,6 +97,9 @@ namespace SolarExpanseLaunchWindows
         public bool IsPlanet(string bodyId)
             => typesById.TryGetValue(bodyId, out var t) && t == EObjectTypes.Planet;
 
+        public bool IsAsteroid(string bodyId)
+            => typesById.TryGetValue(bodyId, out var t) && t == EObjectTypes.Asteroid;
+
         public bool IsPlanetOrAsteroid(string bodyId)
             => typesById.TryGetValue(bodyId, out var t) && (t == EObjectTypes.Planet || t == EObjectTypes.Asteroid);
 
