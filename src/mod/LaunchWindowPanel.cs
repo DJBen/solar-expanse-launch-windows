@@ -2080,7 +2080,7 @@ namespace SolarExpanseLaunchWindows
             string toName   = key.IsReturn ? originName : destName;
 
             if (!TryFireGameNotification(key.DestId, originName, destName, kind, reversed: key.IsReturn))
-                SpawnToast($"LAUNCH WINDOW ({kind}): {fromName} → {toName}");
+                SpawnToast($"Launch Window ({kind}): {fromName} → {toName}");
 
             UpdateAllCheckboxVisuals();
         }
@@ -2173,7 +2173,7 @@ namespace SolarExpanseLaunchWindows
                         string originHL = originOI?.GetType().GetProperty("ObjectNameHighLight", bf)?.GetValue(originOI) as string ?? originName;
                         string destHL   = destOI?.GetType().GetProperty("ObjectNameHighLight", bf)?.GetValue(destOI) as string ?? destName;
                         if (reversed) { var t2 = originHL; originHL = destHL; destHL = t2; } // return: dest → origin
-                        tmp.text = $"{originHL} → {destHL}\nLAUNCH WINDOW ({kind}){(string.IsNullOrEmpty(dateStr) ? "" : " " + dateStr)}";
+                        tmp.text = $"{originHL} → {destHL}\nLaunch Window ({kind}){(string.IsNullOrEmpty(dateStr) ? "" : " " + dateStr)}";
                     }
                 }
 
