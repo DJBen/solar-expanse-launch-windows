@@ -41,6 +41,15 @@ namespace SolarExpanseLaunchWindows
             double freqDiff = Math.Abs(1.0 / tOribit - 1.0 / tDorbit);
             double tSynodic = freqDiff > 0 ? 1.0 / freqDiff : tOribit;
 
+            // Near-Sun synthetic bodies (Solar Orbit: 0.01 AU, T ≈ hours) collapse the
+            // synodic — and with it the departure/tof spans — to hours, where no Lambert
+            // transfer exists and every solve fails. With wildly mismatched periods the
+            // phase repeats every ~T_fast anyway, so span the search over the slower
+            // body's orbit instead.
+            double tPeriodSlow = Math.Max(tOribit, tDorbit);
+            if (Math.Min(tOribit, tDorbit) < tPeriodSlow / 50.0)
+                tSynodic = tPeriodSlow;
+
             // Matches LambertPorkchop.ConvertReltoAbsolute() with SCENE-configured values.
             // Scene (MySceneGame.unity): departNumOrbits=1, minFlightTimeHohRel=0.1, maxFlightTimeHohRel=1.5
             // multiplayerSyndonicznyOkresObiegu=1.25f is field default (not overridden in scene).

@@ -23,6 +23,36 @@ namespace SolarExpanseLaunchWindowsTests
                 ["mars"]  = (MarsRadius,  MarsPeriod),
             });
 
+        // Near-Sun synthetic body (Solar Orbit: 0.01 AU, T ≈ 0.001 yr). The naive
+        // synodic collapses to ~T_dest, shrinking the search spans to hours where no
+        // Lambert transfer exists — the finder must fall back to the slower period.
+        private static FakeBodyEphemeris MakeSolarOrbitEphem() => new FakeBodyEphemeris(
+            SunMu,
+            new Dictionary<string, (double radius, double period)>
+            {
+                ["earth"] = (EarthRadius, EarthPeriod),
+                ["solar"] = (0.01, 0.001),
+            });
+
+        [Test]
+        public void TinyPeriodDestination_StillFindsWindows()
+        {
+            var solver = new WindowedLambertSolver { TofLo = 0.05, TofHi = 1.0 };
+            var finder = new WindowFinder(solver, MakeSolarOrbitEphem(), dvToKmS: 1.0);
+            var (opt, _, syn) = finder.FindWindows("earth", "solar", 0.0);
+            Assert.That(opt, Is.Not.Null, "optimal window to a near-Sun body");
+            Assert.That(syn, Is.EqualTo(EarthPeriod).Within(1e-6), "synodic falls back to slower period");
+        }
+
+        [Test]
+        public void TinyPeriodOrigin_StillFindsWindows()
+        {
+            var solver = new WindowedLambertSolver { TofLo = 0.05, TofHi = 1.0 };
+            var finder = new WindowFinder(solver, MakeSolarOrbitEphem(), dvToKmS: 1.0);
+            var (opt, _, _) = finder.FindWindows("solar", "earth", 0.0);
+            Assert.That(opt, Is.Not.Null, "optimal window from a near-Sun body");
+        }
+
         [Test]
         public void GetSynodic_EarthToMars_ApproximatelyTwoPointOneYears()
         {
