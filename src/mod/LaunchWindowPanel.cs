@@ -153,6 +153,12 @@ namespace SolarExpanseLaunchWindows
             = new Dictionary<string, Dictionary<string, (LaunchWindow?, LaunchWindow?)>>();
         private volatile Dictionary<string, (LaunchWindow?, LaunchWindow?)> _pendingRetCache;
 
+        // Negative-result caching — prevents redoing known-empty calcs on every refresh:
+        // game-time of the last full calc that found no outbound window per dest, and
+        // dests whose ret2 backfill already ran (a null ret2 is an answer, not a gap).
+        private readonly Dictionary<string, double> _nullCalcAt = new Dictionary<string, double>();
+        private readonly HashSet<string> _ret2Tried = new HashSet<string>();
+
         // Sidecar load/apply state
         private bool       _sidecarLoaded;
         private bool       _sidecarApplied;
@@ -198,9 +204,16 @@ namespace SolarExpanseLaunchWindows
         {
             // Rebuild the ephemeris so bodies spawned since the last build (the game
             // creates asteroids at runtime, e.g. randomly generated NEOs) become
-            // searchable and preset-addable. Fires on panel open and the Refresh button.
-            TryBuildEphem(force: true);
-            RefreshOriginIdsPreservingSelection();
+            // searchable and preset-addable. Fires on panel open and the Refresh button —
+            // throttled to a full scene rescan at most every 30 real seconds (preset adds
+            // still force a rebuild whenever they meet an unknown body).
+            if (Time.realtimeSinceStartup - lastEphemBuildTime > 30f)
+            {
+                TryBuildEphem(force: true);
+                RefreshOriginIdsPreservingSelection();
+            }
+            else
+                TryBuildEphem();
             needsRefresh = true;
         }
 
@@ -1350,6 +1363,8 @@ namespace SolarExpanseLaunchWindows
         {
             cache.Clear();
             retCache.Clear();
+            _nullCalcAt.Clear();
+            _ret2Tried.Clear();
             foreach (var tmps in rowTMPs.Values)
                 foreach (var tmp in tmps)
                     if (tmp != null) { tmp.text = "—"; tmp.color = DashColor; }
@@ -1393,14 +1408,23 @@ namespace SolarExpanseLaunchWindows
             {
                 if (dId == originId) continue;
                 if (!HasValidCache(dId, physNow))
+                {
+                    // Known no-window result: the transfer geometry barely changes faster
+                    // than ~1/24 of the origin's orbit, so don't retry a failed search
+                    // until that much game time has passed.
+                    if (cache.TryGetValue(dId, out var ceN) && !ceN.opt1.HasValue &&
+                        _nullCalcAt.TryGetValue(dId, out var tN) &&
+                        physNow - tN < ephem.GetPeriod(originId) / 24.0)
+                        continue;
                     toCalcFull.Add(dId);
+                }
                 else if (showNextSnap && needsOpt2Snap.Contains(dId) && cache.TryGetValue(dId, out var ce) && ce.opt1.HasValue)
                     toCalcPartial.Add((dId, ce.opt1.Value, ce.fst1));
                 else if (needsFstSnap.Contains(dId) && cache.TryGetValue(dId, out var ce2) && ce2.opt1.HasValue)
                     toCalcFstPartial.Add((dId, ce2.opt1.Value, ce2.opt2));
                 else if (showRetSnap && cache.TryGetValue(dId, out var ce3) && ce3.opt1.HasValue &&
                          (!retSnapDict.TryGetValue(dId, out var rr) ||
-                          (showNextSnap && ce3.opt2.HasValue && rr.ret2 == null)))
+                          (showNextSnap && ce3.opt2.HasValue && rr.ret2 == null && !_ret2Tried.Contains(dId))))
                     // On-demand return backfill: Return section just enabled, sidecar
                     // load, or next-window row newly available.
                     toCalcRet.Add((dId, ce3.opt1.Value, ce3.opt2));
@@ -1591,11 +1615,26 @@ namespace SolarExpanseLaunchWindows
             try
             {
                 // Merge new results; existing valid cache entries for un-recalculated dests survive.
-                foreach (var kv in _pendingCache) cache[kv.Key] = kv.Value;
+                var geA = GravityEngine.Instance();
+                double nowA = geA != null ? geA.GetPhysicalTimeDouble() : 0;
+                foreach (var kv in _pendingCache)
+                {
+                    cache[kv.Key] = kv.Value;
+                    // Remember empty outcomes so they aren't re-searched every refresh.
+                    if (!kv.Value.Item1.HasValue) _nullCalcAt[kv.Key] = nowA;
+                    else                          _nullCalcAt.Remove(kv.Key);
+                }
                 _pendingCache = null;
                 if (_pendingRetCache != null)
                 {
-                    foreach (var kv in _pendingRetCache) retCache[kv.Key] = kv.Value;
+                    foreach (var kv in _pendingRetCache)
+                    {
+                        retCache[kv.Key] = kv.Value;
+                        if (kv.Value.Item2 == null && cache.TryGetValue(kv.Key, out var ceR) && ceR.opt2.HasValue)
+                            _ret2Tried.Add(kv.Key);
+                        else
+                            _ret2Tried.Remove(kv.Key);
+                    }
                     _pendingRetCache = null;
                 }
                 _needsOpt2Recalc.Clear();
@@ -2038,6 +2077,8 @@ namespace SolarExpanseLaunchWindows
             _sidecarDirty = true;
             cache.Remove(dId);
             retCache.Remove(dId);
+            _nullCalcAt.Remove(dId);
+            _ret2Tried.Remove(dId);
             rowTMPs.Remove(dId);
             rowNameTMPs.Remove(dId);
             rowIconImgs.Remove(dId);

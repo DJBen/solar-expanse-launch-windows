@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Travel column replaced by **Arrives** (estimated arrival date); Departs and Arrives both use `yy/MM/dd` format (e.g. 26/07/18).
 - Both opportunity rows now use the same 15pt value font (first row is no longer larger — dimming alone distinguishes the next window), and the Δv columns are narrower (95/110px).
 ### Fixed
+- Repeated panel opens no longer redo work: destinations whose search found no window are not re-searched until game time advances ~1/24 of the origin's orbit; a return-window backfill that found no second-row solution is not re-attempted; and the on-open ephemeris scene rescan is throttled to every 30 real seconds. (Cached future-dated windows were already reused — only expired windows trigger recalculation.)
 - Solar Orbit as a destination (or origin) showed "—" in every column: its ~9-hour orbital period collapsed the synodic-derived search spans to hours, where no Lambert transfer exists. With wildly mismatched periods the finder now spans the slower body's orbit instead.
 - Runtime-created asteroids (the game spawns randomly generated NEOs like LU4-6533 during play) were invisible to search and skipped by presets because the ephemeris was built once per session. It now rebuilds on panel open / Refresh, and a preset add that meets an unknown group member forces a rebuild before adding.
 - Undiscovered bodies (not yet found by the player) are shown with a greyed-out name instead of white — the game's own lists hide them entirely.
