@@ -2531,6 +2531,24 @@ namespace SolarExpanseLaunchWindows
             return btn;
         }
 
+        // An alarm belongs to a window slot if it matches origin/dest/kind and its date
+        // is within ±16 days of the window's departure. Exact-date keys proved brittle:
+        // epoch→date conversion can drift a day between sessions or recalcs, which used
+        // to orphan the alarm and render the checkbox unarmed. Adjacent windows of the
+        // same slot are months apart (synodic), so the tolerance cannot mis-match.
+        private AlarmKey? FindAlarmNear(string destId, bool isFastest, bool isReturn, DateTime depDate)
+        {
+            foreach (var a in _alarms)
+            {
+                if (a.DestId != destId || a.OriginId != OriginId ||
+                    a.IsFastest != isFastest || a.IsReturn != isReturn) continue;
+                int day = Math.Max(1, Math.Min(a.Day <= 0 ? 15 : a.Day, DateTime.DaysInMonth(a.Year, a.Month)));
+                var d = new DateTime(a.Year, a.Month, day);
+                if (Math.Abs((d - depDate).TotalDays) <= 16) return a;
+            }
+            return null;
+        }
+
         private void ToggleAlarmForRow(string destId, bool isRow2, bool isFastest)
         {
             string dest = ephem?.GetDisplayName(destId) ?? destId;
@@ -2546,10 +2564,15 @@ namespace SolarExpanseLaunchWindows
             if (!TryEpochToDate(window.Value.DepartureEpoch, out var depDate))
             { Plugin.Log.LogInfo($"[LW] ToggleAlarm '{dest}': TryEpochToDate failed"); return; }
 
-            var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, Day = depDate.Day, IsFastest = isFastest };
-            if (!_alarms.Remove(key)) _alarms.Add(key);
+            var existing = FindAlarmNear(destId, isFastest, isReturn: false, depDate);
+            bool armed;
+            if (existing.HasValue) { _alarms.Remove(existing.Value); armed = false; }
+            else
+            {
+                _alarms.Add(new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, Day = depDate.Day, IsFastest = isFastest });
+                armed = true;
+            }
             _sidecarDirty = true;
-            bool armed = _alarms.Contains(key);
             Plugin.Log.LogInfo($"[LW] ToggleAlarm '{dest}': armed={armed} row2={isRow2} fast={isFastest}");
             int idx = (!isFastest ? 0 : 2) + (isRow2 ? 1 : 0);
             UpdateCheckboxVisual(destId, idx, armed);
@@ -2566,10 +2589,15 @@ namespace SolarExpanseLaunchWindows
             if (ephem == null || !TryEpochToDate(window.Value.DepartureEpoch, out var depDate))
             { Plugin.Log.LogInfo($"[LW] ToggleReturnAlarm '{dest}': date unavailable"); return; }
 
-            var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, Day = depDate.Day, IsFastest = false, IsReturn = true };
-            if (!_alarms.Remove(key)) _alarms.Add(key);
+            var existing = FindAlarmNear(destId, isFastest: false, isReturn: true, depDate);
+            bool armed;
+            if (existing.HasValue) { _alarms.Remove(existing.Value); armed = false; }
+            else
+            {
+                _alarms.Add(new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, Day = depDate.Day, IsFastest = false, IsReturn = true });
+                armed = true;
+            }
             _sidecarDirty = true;
-            bool armed = _alarms.Contains(key);
             Plugin.Log.LogInfo($"[LW] ToggleReturnAlarm '{dest}': armed={armed} row2={isRow2}");
             UpdateCheckboxVisual(destId, 4 + (isRow2 ? 1 : 0), armed);
         }
@@ -2628,8 +2656,7 @@ namespace SolarExpanseLaunchWindows
                         continue;
                     }
                     btn.interactable = true;
-                    var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, IsFastest = isFastests[i], IsReturn = isReturns[i] };
-                    bool armed = _alarms.Contains(key);
+                    bool armed = FindAlarmNear(destId, isFastests[i], isReturns[i], depDate) != null;
                     if (img != null) img.color = armed ? CbCheckedBg : CbUncheckedBg;
                     if (tmp != null) { tmp.text = armed ? "✓" : "□"; tmp.color = armed ? CbCheckedFg : CbUncheckedFg; }
                 }
