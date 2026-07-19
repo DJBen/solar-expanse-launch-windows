@@ -100,6 +100,10 @@ namespace SolarExpanseLaunchWindows.UI
                     expandWidth: true, height: 27f,
                     bgColor: new Color(0.06f, 0.16f, 0.22f, 0.55f));
 
+                var optionsBtn = MakeButton("OptionsBtn", headerGO.transform, font, "Options ▼",
+                    fixedWidth: 96f, height: 27f,
+                    bgColor: new Color(0.10f, 0.12f, 0.15f, 0.0f));
+                AddTooltip(optionsBtn.gameObject, "Display options: toggle the Δv column and the second (next synodic) transfer window.");
                 var clearBtn = MakeButton("ClearBtn", headerGO.transform, font, "Clear",
                     fixedWidth: 60f, height: 27f,
                     bgColor: new Color(0.10f, 0.12f, 0.15f, 0.0f),
@@ -118,10 +122,10 @@ namespace SolarExpanseLaunchWindows.UI
                 MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 15f, 158f, TextAlignmentOptions.Left, bold: true);
                 // 18px spacer + (groupW−18) labels keep OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
                 MakeColLabel("CHNT1", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
-                MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 15f, 425f, TextAlignmentOptions.Left, bold: true);
+                var ch1TMP = MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 15f, 425f, TextAlignmentOptions.Left, bold: true);
                 MakeColLabel("CHSep", colHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
                 MakeColLabel("CHNT2", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
-                MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 15f, 442f, TextAlignmentOptions.Left, bold: true);
+                var ch2TMP = MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 15f, 442f, TextAlignmentOptions.Left, bold: true);
 
                 // Row 4: Sub-header — cells must match LaunchWindowPanel OPT_*/FST_* constants.
                 // Optimal: dep=118 dv=95 arr=100 fuel=130 (443); Fastest: dep=120 dv=110 arr=100 fuel=130 (460)
@@ -268,6 +272,10 @@ namespace SolarExpanseLaunchWindows.UI
                 var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 255f, 264f);
                 presetsDropGO.SetActive(false);
 
+                // ── Options dropdown overlay (2 checkbox items) ───────────────────────────────
+                var optionsDropGO = MakeDropdownPanel("LWOptionsDropdown", canvas.transform, font, 340f, 76f);
+                optionsDropGO.SetActive(false);
+
                 // ── Attach panel MonoBehaviour ────────────────────────────────────────────────
                 var panel = panelGO.AddComponent<LaunchWindowPanel>();
                 panel.OriginBtn     = originBtn;
@@ -282,6 +290,12 @@ namespace SolarExpanseLaunchWindows.UI
                 panel.SearchDropGO  = searchDropGO;
                 panel.PresetsDropGO = presetsDropGO;
                 panel.PresetsBtn    = presetsBtn;
+                panel.OptionsDropGO = optionsDropGO;
+                panel.OptionsBtn    = optionsBtn;
+                panel.OptDvHdrGO    = optDvBtn.gameObject;
+                panel.FstDvHdrGO    = fstDvBtn.gameObject;
+                panel.OptColHdrLE   = ch1TMP.transform.parent.GetComponent<LayoutElement>();
+                panel.FstColHdrLE   = ch2TMP.transform.parent.GetComponent<LayoutElement>();
                 panel.SearchInput   = searchInput;
 
                 panel.OptDepHdrTMP  = optDepTMP;
@@ -299,7 +313,9 @@ namespace SolarExpanseLaunchWindows.UI
                 originBtn.onClick.AddListener(panel.ToggleOriginDropdown);
                 craftBtn.onClick.AddListener(panel.ToggleCraftDropdown);
                 presetsBtn.onClick.AddListener(panel.TogglePresetsDropdown);
+                optionsBtn.onClick.AddListener(panel.ToggleOptionsDropdown);
                 clearBtn.onClick.AddListener(panel.ClearAllDests);
+                panel.ApplySubHdrLayout();
                 optDepBtn.onClick.AddListener(panel.ToggleSortOptDep);
                 fstDepBtn.onClick.AddListener(panel.ToggleSortFstDep);
                 optDvBtn.onClick.AddListener(panel.ToggleSortOptDv);
@@ -502,10 +518,10 @@ namespace SolarExpanseLaunchWindows.UI
             var depTMP = AddTMP(depLbl, font, "Departs", 15f, TextAlignmentOptions.Left, muted: true);
             AddTooltip(depGO, "Departure date. Click column header to sort.");
 
-            var (dvBtn, dvTMP) = MakeSortLabel(go.transform, font, "Δv", dvW,
-                "Estimated fuel cost (km/s). Shown in red when it exceeds your craft's Δv budget. Click to sort.");
             var (arrBtn, arrTMP) = MakeSortLabel(go.transform, font, "Arrives", 100f,
                 "Estimated arrival date at the destination. Click to sort.");
+            var (dvBtn, dvTMP) = MakeSortLabel(go.transform, font, "Δv", dvW,
+                "Estimated fuel cost (km/s). Shown in red when it exceeds your craft's Δv budget. Click to sort.");
             var (fuBtn, fuTMP) = MakeSortLabel(go.transform, font, "Fuel (E/F)", 130f,
                 "Estimated propellant for this transfer with the selected craft: Empty / Full cargo load (rocket equation, using the currently researched exhaust velocity). Red: exceeds the craft's fuel tank capacity — it cannot carry enough propellant for this transfer at that load. Click to sort.");
 

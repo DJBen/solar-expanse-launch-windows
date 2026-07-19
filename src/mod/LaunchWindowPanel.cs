@@ -40,6 +40,12 @@ namespace SolarExpanseLaunchWindows
         internal GameObject      SearchDropGO;
         internal GameObject      PresetsDropGO;
         internal Button          PresetsBtn;
+        internal GameObject      OptionsDropGO;
+        internal Button          OptionsBtn;
+        internal GameObject      OptDvHdrGO;      // sub-header Δv sort cell (Optimal side)
+        internal GameObject      FstDvHdrGO;      // sub-header Δv sort cell (Fastest side)
+        internal LayoutElement   OptColHdrLE;     // OPTIMAL column-header label width
+        internal LayoutElement   FstColHdrLE;     // FASTEST column-header label width
         internal TMP_InputField  SearchInput;
         internal GameObject      CalcOverlayGO;
         internal TMP_InputField  OriginFilterInput;
@@ -96,6 +102,11 @@ namespace SolarExpanseLaunchWindows
         private bool  refreshing;
         private bool  originDropOpen;
         private bool  _presetsDropOpen;
+        private bool  _optionsDropOpen;
+
+        // Display options — persisted via BepInEx config (Options dropdown in the header).
+        private bool ShowDv   => Plugin.CfgShowDv == null || Plugin.CfgShowDv.Value;
+        private bool ShowNext => Plugin.CfgShowNextWindow == null || Plugin.CfgShowNextWindow.Value;
         private HashSet<string> _originShipBodies;
 
         private volatile bool _calcDone;
@@ -172,6 +183,7 @@ namespace SolarExpanseLaunchWindows
             HideCraftDropdown();
             HideSearchDropdown();
             HidePresetsDropdown();
+            HideOptionsDropdown();
             gameObject.SetActive(false);
         }
 
@@ -343,6 +355,96 @@ namespace SolarExpanseLaunchWindows
 
         private bool IsBodyDestroyedId(string bodyId)
             => ephem != null && IsBodyDestroyed(ephem.GetNBodyForId(bodyId));
+
+        // ── Options dropdown ──────────────────────────────────────────────────────
+
+        internal void ToggleOptionsDropdown()
+        {
+            if (_optionsDropOpen) HideOptionsDropdown();
+            else                  ShowOptionsDropdown();
+        }
+
+        private void ShowOptionsDropdown()
+        {
+            if (OptionsDropGO == null) return;
+            PopulateOptionsDropdown();
+            PositionDropdownBelow(OptionsDropGO, OptionsBtn?.GetComponent<RectTransform>(), below: true);
+            OptionsDropGO.SetActive(true);
+            _optionsDropOpen = true;
+        }
+
+        internal void HideOptionsDropdown()
+        {
+            if (OptionsDropGO != null) OptionsDropGO.SetActive(false);
+            _optionsDropOpen = false;
+        }
+
+        // Stays open after a click so both options can be toggled in one visit.
+        private void PopulateOptionsDropdown()
+        {
+            var content = GetDropContent(OptionsDropGO);
+            if (content == null) return;
+            for (int i = content.childCount - 1; i >= 0; i--)
+                UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
+
+            AddDropdownItem(content, (ShowDv ? "■ " : "□ ") + "Show Δv column", false, () => {
+                if (Plugin.CfgShowDv != null) Plugin.CfgShowDv.Value = !ShowDv;
+                ApplySubHdrLayout();
+                RebuildAllRowsForLayout();
+                PopulateOptionsDropdown();
+            });
+            AddDropdownItem(content, (ShowNext ? "■ " : "□ ") + "Show next transfer window", false, () => {
+                bool newVal = !ShowNext;
+                if (Plugin.CfgShowNextWindow != null) Plugin.CfgShowNextWindow.Value = newVal;
+                if (newVal)
+                {
+                    // Second windows were skipped while disabled — schedule the cheap
+                    // partial recalc (opt1 stays cached) for every destination missing one.
+                    foreach (var kv in cache)
+                        if (kv.Value.opt1.HasValue && !kv.Value.opt2.HasValue)
+                            _needsOpt2Recalc.Add(kv.Key);
+                }
+                RebuildAllRowsForLayout();
+                PopulateOptionsDropdown();
+            });
+        }
+
+        // Sub-header + column-header widths for the current ShowDv state.
+        internal void ApplySubHdrLayout()
+        {
+            bool dv = ShowDv;
+            float optW = OPT_DEP_W + ARR_W + FUEL_W + (dv ? OPT_DV_W : 0f);
+            float fstW = FST_DEP_W + ARR_W + FUEL_W + (dv ? FST_DV_W : 0f);
+            if (OptDvHdrGO != null)
+            {
+                OptDvHdrGO.SetActive(dv);
+                var le = OptDvHdrGO.transform.parent?.GetComponent<LayoutElement>();
+                if (le != null) le.preferredWidth = optW;
+            }
+            if (FstDvHdrGO != null)
+            {
+                FstDvHdrGO.SetActive(dv);
+                var le = FstDvHdrGO.transform.parent?.GetComponent<LayoutElement>();
+                if (le != null) le.preferredWidth = fstW;
+            }
+            if (OptColHdrLE != null) OptColHdrLE.preferredWidth = optW - 18f;
+            if (FstColHdrLE != null) FstColHdrLE.preferredWidth = fstW - 18f;
+        }
+
+        // Destroy every row so CreateRow rebuilds them under the current options.
+        private void RebuildAllRowsForLayout()
+        {
+            foreach (var key in rowTMPs.Keys.ToList())
+            {
+                var t = ContentParent?.Find("Row_" + key);
+                if (t != null) Destroy(t.gameObject);
+            }
+            rowTMPs.Clear();
+            rowNameTMPs.Clear();
+            rowIconImgs.Clear();
+            rowCheckboxBtns.Clear();
+            needsRefresh = true;
+        }
 
         // The game classifies minor bodies with ObjectInfoGroups scene components
         // (translateID → CelestialBodiesNames.NEOs / InnerBelt / MiddleBelt / OuterBelt /
@@ -1055,12 +1157,13 @@ namespace SolarExpanseLaunchWindows
             var toCalcFull         = new List<string>();
             var toCalcPartial      = new List<(string dId, LaunchWindow opt1, LaunchWindow? fst1)>();
             var toCalcFstPartial   = new List<(string dId, LaunchWindow opt1, LaunchWindow? opt2)>();
+            bool showNextSnap = ShowNext; // skip second-window (next synodic) calcs when hidden
             foreach (var dId in destSnap)
             {
                 if (dId == originId) continue;
                 if (!HasValidCache(dId, physNow))
                     toCalcFull.Add(dId);
-                else if (needsOpt2Snap.Contains(dId) && cache.TryGetValue(dId, out var ce) && ce.opt1.HasValue)
+                else if (showNextSnap && needsOpt2Snap.Contains(dId) && cache.TryGetValue(dId, out var ce) && ce.opt1.HasValue)
                     toCalcPartial.Add((dId, ce.opt1.Value, ce.fst1));
                 else if (needsFstSnap.Contains(dId) && cache.TryGetValue(dId, out var ce2) && ce2.opt1.HasValue)
                     toCalcFstPartial.Add((dId, ce2.opt1.Value, ce2.opt2));
@@ -1105,7 +1208,7 @@ namespace SolarExpanseLaunchWindows
                         {
                             var (o1, f1, syn) = localFinder.FindWindows(originId, dId, physNow, dvCap);
                             LaunchWindow? o2 = null, f2 = null;
-                            if (syn > 0)
+                            if (syn > 0 && showNextSnap)
                             {
                                 var (oo2, ff2, _) = localFinder.FindWindows(originId, dId, physNow + syn, dvCap);
                                 o2 = oo2; f2 = ff2;
@@ -1165,7 +1268,7 @@ namespace SolarExpanseLaunchWindows
                             var r1 = localFinder.FindWindows(originId, item.dId, physNow, dvCap);
                             LaunchWindow? f1 = r1.fastest;
                             LaunchWindow? f2 = null;
-                            if (syn > 0)
+                            if (syn > 0 && showNextSnap)
                             {
                                 var r2 = localFinder.FindWindows(originId, item.dId, physNow + syn, dvCap);
                                 f2 = r2.fastest;
@@ -1266,8 +1369,9 @@ namespace SolarExpanseLaunchWindows
         }
 
         // Sub-column widths — must match injector sub-header widths exactly.
-        // All fixed so both rows align: Optimal group = 118+95+100+130 = 443px;
-        // Fastest group = 120+110+100+130 = 460px (+ 21px trailing × on row 1 only).
+        // Column order: Departs | Arrives | Δv | Fuel. All fixed so both rows align;
+        // group widths depend on ShowDv (Δv column hidden by default) — see
+        // ApplySubHdrLayout and the locals in CreateRow.
         private const float CB_W       = 18f;
         private const float OPT_DEP_W  = 118f; // cb 18 + "26/07/18" at 15pt table font
         private const float OPT_DV_W   = 95f;
@@ -1275,15 +1379,16 @@ namespace SolarExpanseLaunchWindows
         private const float FST_DV_W   = 110f;
         private const float ARR_W      = 100f; // "26/07/18" arrival date
         private const float FUEL_W     = 130f; // "23.8/31.2t" (E/F) at 15pt table font
-        private const float OPT_GRP_W  = OPT_DEP_W + OPT_DV_W + ARR_W + FUEL_W; // 443
-        private const float FST_GRP_W  = FST_DEP_W + FST_DV_W + ARR_W + FUEL_W; // 460
 
         private void CreateRow(string dId)
         {
-            // Container is a VLG holding primary row (30px) + next-window row (23px).
+            // Container is a VLG holding primary row (30px) + next-window row (23px, optional).
             var container = new GameObject("Row_" + dId, typeof(RectTransform));
             container.transform.SetParent(ContentParent, false);
-            container.AddComponent<LayoutElement>().preferredHeight = 53f;
+            container.AddComponent<LayoutElement>().preferredHeight = ShowNext ? 53f : 30f;
+
+            float optGrpW = OPT_DEP_W + ARR_W + FUEL_W + (ShowDv ? OPT_DV_W : 0f);
+            float fstGrpW = FST_DEP_W + ARR_W + FUEL_W + (ShowDv ? FST_DV_W : 0f);
             var containerVLG = container.AddComponent<VerticalLayoutGroup>();
             containerVLG.childControlHeight = true; containerVLG.childControlWidth = true;
             containerVLG.childForceExpandHeight = false; containerVLG.childForceExpandWidth = true;
@@ -1380,7 +1485,7 @@ namespace SolarExpanseLaunchWindows
             // Optimal group: [cb+dep | dv | tvl]  |gap|  Fastest: [dep | dv | tvl]
             var oGroup = new GameObject("OptCol", typeof(RectTransform));
             oGroup.transform.SetParent(inner.transform, false);
-            oGroup.AddComponent<LayoutElement>().preferredWidth = OPT_GRP_W;
+            oGroup.AddComponent<LayoutElement>().preferredWidth = optGrpW;
             var oHlg = oGroup.AddComponent<HorizontalLayoutGroup>();
             oHlg.childControlHeight = true; oHlg.childControlWidth = true;
             oHlg.childForceExpandHeight = true; oHlg.childForceExpandWidth = false;
@@ -1395,8 +1500,9 @@ namespace SolarExpanseLaunchWindows
             oDHlg.spacing = 0f;
             var cb1 = MakeCheckboxButton(oDCell.transform);
             var oD  = MakeColLabel(oDCell.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W);
-            var oDv  = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W);
             var oTvl = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W);
+            var oDv  = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W);
+            if (!ShowDv) oDv.transform.parent.gameObject.SetActive(false);
             var oFu  = MakeColLabel(oGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W);
             var sep1 = new GameObject("Sep", typeof(RectTransform));
             sep1.transform.SetParent(inner.transform, false);
@@ -1404,7 +1510,7 @@ namespace SolarExpanseLaunchWindows
             // Fastest group — inline with checkbox, matching optimal group structure
             var fGroup = new GameObject("FstCol", typeof(RectTransform));
             fGroup.transform.SetParent(inner.transform, false);
-            fGroup.AddComponent<LayoutElement>().preferredWidth = FST_GRP_W;
+            fGroup.AddComponent<LayoutElement>().preferredWidth = fstGrpW;
             var fHlg = fGroup.AddComponent<HorizontalLayoutGroup>();
             fHlg.childControlHeight = true; fHlg.childControlWidth = true;
             fHlg.childForceExpandHeight = true; fHlg.childForceExpandWidth = false;
@@ -1418,8 +1524,9 @@ namespace SolarExpanseLaunchWindows
             fDHlg.spacing = 0f;
             var fstCb1 = MakeCheckboxButton(fDCell.transform);
             var fD     = MakeColLabel(fDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
-            var fDv    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W);
             var fTvl   = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W);
+            var fDv    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W);
+            if (!ShowDv) fDv.transform.parent.gameObject.SetActive(false);
             var fFu    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W);
 
             // Trailing × delete button (21px, far right of the primary row)
@@ -1445,10 +1552,11 @@ namespace SolarExpanseLaunchWindows
             xTMP.color = new Color(1f, 0.55f, 0.55f); xTMP.enableWordWrapping = false;
             xTMP.raycastTarget = false;
 
-            // ── Next-window row (dimmed, 23px) ───────────────────────────────────────
+            // ── Next-window row (dimmed, 23px; hidden unless ShowNext) ───────────────
             var row2 = new GameObject("R2", typeof(RectTransform));
             row2.transform.SetParent(container.transform, false);
             row2.AddComponent<LayoutElement>().preferredHeight = 23f;
+            if (!ShowNext) row2.SetActive(false);
 
             var inner2 = new GameObject("HLG2", typeof(RectTransform));
             inner2.transform.SetParent(row2.transform, false);
@@ -1469,7 +1577,7 @@ namespace SolarExpanseLaunchWindows
             // Row-2 opt group mirrors row1's oGroup exactly.
             var noOGroup = new GameObject("OptCol2", typeof(RectTransform));
             noOGroup.transform.SetParent(inner2.transform, false);
-            noOGroup.AddComponent<LayoutElement>().preferredWidth = OPT_GRP_W;
+            noOGroup.AddComponent<LayoutElement>().preferredWidth = optGrpW;
             var noOHlg = noOGroup.AddComponent<HorizontalLayoutGroup>();
             noOHlg.childControlHeight = true; noOHlg.childControlWidth = true;
             noOHlg.childForceExpandHeight = true; noOHlg.childForceExpandWidth = false;
@@ -1484,8 +1592,9 @@ namespace SolarExpanseLaunchWindows
             noD2Hlg.spacing = 0f;
             var cb2 = MakeCheckboxButton(noD2Cell.transform, forRow2: true);
             var noD  = MakeColLabel(noD2Cell.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DEP_W - CB_W, dimC);
-            var noDv = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
             var noTvl = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W, dimC);
+            var noDv = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, OPT_DV_W,  dimC);
+            if (!ShowDv) noDv.transform.parent.gameObject.SetActive(false);
             var noFu = MakeColLabel(noOGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W, dimC);
             var sep2 = new GameObject("Sep2", typeof(RectTransform));
             sep2.transform.SetParent(inner2.transform, false);
@@ -1493,7 +1602,7 @@ namespace SolarExpanseLaunchWindows
             // Row-2 fst group: same width as row1's fGroup so every column lands at the same x.
             var noFGroup = new GameObject("FstCol2", typeof(RectTransform));
             noFGroup.transform.SetParent(inner2.transform, false);
-            noFGroup.AddComponent<LayoutElement>().preferredWidth = FST_GRP_W;
+            noFGroup.AddComponent<LayoutElement>().preferredWidth = fstGrpW;
             var noFHlg = noFGroup.AddComponent<HorizontalLayoutGroup>();
             noFHlg.childControlHeight = true; noFHlg.childControlWidth = true;
             noFHlg.childForceExpandHeight = true; noFHlg.childForceExpandWidth = false;
@@ -1507,8 +1616,9 @@ namespace SolarExpanseLaunchWindows
             nfDHlg.spacing = 0f;
             var fstCb2 = MakeCheckboxButton(nfDCell.transform, forRow2: true);
             var nfD   = MakeColLabel(nfDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
-            var nfDv  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
             var nfTvl = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W, dimC);
+            var nfDv  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
+            if (!ShowDv) nfDv.transform.parent.gameObject.SetActive(false);
             var nfFu  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W, dimC);
 
             // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
