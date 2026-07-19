@@ -1129,6 +1129,7 @@ namespace SolarExpanseLaunchWindows
                 if (listAll == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ListAllSpaceShip not found"); return Array.Empty<(string, double, double, double, double, double, double)>(); }
 
                 var seen     = new HashSet<int>();
+                var typeObjs = new List<object>();
                 var result   = new List<(string, double, double, double, double, double, double)>();
                 System.Reflection.FieldInfo fieldSCT = null;
 
@@ -1136,11 +1137,34 @@ namespace SolarExpanseLaunchWindows
                 {
                     if (fieldSCT == null)
                         fieldSCT = sc.GetType().GetField("spacecraftType", bf);
-                    var scType = fieldSCT?.GetValue(sc);
-                    if (scType == null) continue;
-                    int hash = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(scType);
-                    if (!seen.Add(hash)) continue;
+                    var scType0 = fieldSCT?.GetValue(sc);
+                    if (scType0 == null) continue;
+                    if (seen.Add(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(scType0)))
+                        typeObjs.Add(scType0);
+                }
 
+                // Also include unlocked-but-not-yet-built types — matches the game's
+                // mission planner (AllSpacecraftType.GetUnlockRocketType(player)), so a
+                // freshly researched craft (e.g. Stratos still under construction) is
+                // available for planning.
+                try
+                {
+                    var asomType = asm.GetType("AllScriptableObjectManager")
+                                ?? asm.GetType("Data.ScriptableObject.AllScriptableObjectManager");
+                    var asom = asomType != null ? UnityEngine.Object.FindObjectOfType(asomType) : null;
+                    var allSct = asom?.GetType().GetProperty("AllSpacecraftType", bf)?.GetValue(asom)
+                              ?? asom?.GetType().GetField("allSpacecraftType", bf)?.GetValue(asom);
+                    var mUnlock = allSct?.GetType().GetMethods(bf)
+                        .FirstOrDefault(m => m.Name == "GetUnlockRocketType" && m.GetParameters().Length == 1);
+                    if (mUnlock != null && mUnlock.Invoke(allSct, new[] { player }) is IEnumerable unlocked)
+                        foreach (var t in unlocked)
+                            if (t != null && seen.Add(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(t)))
+                                typeObjs.Add(t);
+                }
+                catch (Exception ex) { Plugin.Log.LogWarning($"[LW] GetAllCraftDv unlocked types: {ex.Message}"); }
+
+                foreach (var scType in typeObjs)
+                {
                     var scTypeType = scType.GetType();
                     bool isSolar = Convert.ToBoolean(scTypeType.GetProperty("SolarSC", bf)?.GetValue(scType));
 
