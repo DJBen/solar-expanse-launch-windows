@@ -368,6 +368,14 @@ namespace SolarExpanseLaunchWindows
                 AddPresenceBodies();
             });
 
+            // Planets (Mercury … Neptune, incl. Mars) — right after My Bases.
+            var marsId = ephem?.AllBodyIds.FirstOrDefault(id =>
+                string.Equals(ephem.GetDisplayName(id), "Mars", StringComparison.OrdinalIgnoreCase));
+            AddDropdownItem(content, "Planets", false, () => {
+                HidePresetsDropdown();
+                AddPlanetBodies();
+            }, marsId != null ? GetBodyIcon(marsId) : null);
+
             // One item per game group (NEOs, Inner/Middle/Outer Belt, Trojans, Kuiper Belt, …),
             // sorted sunward-out by the group's average orbital distance.
             foreach (var g in GetGameGroups())
@@ -376,8 +384,25 @@ namespace SolarExpanseLaunchWindows
                 AddDropdownItem(content, GroupLabel(captured), false, () => {
                     HidePresetsDropdown();
                     AddGroupBodies(captured);
-                });
+                }, captured.imagePlanetUI);
             }
+        }
+
+        internal void AddPlanetBodies()
+        {
+            TryBuildEphem();
+            if (ephem == null) return;
+            int added = 0;
+            foreach (var id in ephem.AllBodyIds)
+            {
+                if (!ephem.IsPlanet(id)) continue;
+                if (id == OriginId || DestIds.Contains(id) || IsBodyDestroyedId(id)) continue;
+                DestIds.Add(id);
+                _sidecarDirty = true;
+                added++;
+            }
+            Plugin.Log.LogInfo($"[LW] AddPlanetBodies: added {added}");
+            if (added > 0) needsRefresh = true;
         }
 
         // A body the game has "virtually destroyed" (impacted, nuked, mined out) keeps
@@ -731,13 +756,9 @@ namespace SolarExpanseLaunchWindows
                 .Take(10)
                 .ToList();
 
-            int added = 0;
-            foreach (var id in matches)
+            void AddSearchItem(string bodyId, string label)
             {
-                var captured = id;
-                if (DestIds.Contains(captured) || captured == OriginId) continue;
-                added++;
-                string label = ephem.GetDisplayName(id);
+                var captured = bodyId;
                 AddDropdownItem(content, label, false, () => {
                     if (!DestIds.Contains(captured))
                     {
@@ -751,7 +772,31 @@ namespace SolarExpanseLaunchWindows
                     _pendingSearch = "";
                     _lastSearch    = "";
                     HideSearchDropdown();
-                });
+                }, GetBodyIcon(captured));
+            }
+
+            int added = 0;
+            foreach (var id in matches)
+            {
+                if (DestIds.Contains(id) || id == OriginId) continue;
+                added++;
+                AddSearchItem(id, ephem.GetDisplayName(id));
+            }
+
+            // Moons aren't heliocentric bodies; match them by name and resolve to their
+            // parent planet ("Ganymede → Jupiter").
+            if (added < 10)
+            {
+                foreach (var kv in ephem.MoonAliases
+                             .Where(kv => kv.Key.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                             .OrderBy(kv => kv.Key)
+                             .Take(10 - added))
+                {
+                    string parentId = kv.Value;
+                    if (DestIds.Contains(parentId) || parentId == OriginId || IsBodyDestroyedId(parentId)) continue;
+                    added++;
+                    AddSearchItem(parentId, $"{kv.Key} → {ephem.GetDisplayName(parentId)}");
+                }
             }
 
             if (added == 0) { HideSearchDropdown(); return; }
@@ -792,7 +837,8 @@ namespace SolarExpanseLaunchWindows
             }
         }
 
-        private void AddDropdownItem(Transform content, string label, bool dimmed, UnityAction onClick)
+        private void AddDropdownItem(Transform content, string label, bool dimmed, UnityAction onClick,
+                                     Sprite icon = null)
         {
             var go  = new GameObject("Item", typeof(RectTransform));
             go.transform.SetParent(content, false);
@@ -807,11 +853,25 @@ namespace SolarExpanseLaunchWindows
             btn.colors = colors;
             btn.onClick.AddListener(onClick);
 
+            if (icon != null)
+            {
+                var icoGO = new GameObject("Ico", typeof(RectTransform));
+                icoGO.transform.SetParent(go.transform, false);
+                var icoRT = icoGO.GetComponent<RectTransform>();
+                icoRT.anchorMin = new Vector2(0f, 0f); icoRT.anchorMax = new Vector2(0f, 1f);
+                icoRT.pivot = new Vector2(0f, 0.5f);
+                icoRT.sizeDelta = new Vector2(22f, -8f);
+                icoRT.anchoredPosition = new Vector2(6f, 0f);
+                var icoImg = icoGO.AddComponent<Image>();
+                icoImg.sprite = icon; icoImg.preserveAspect = true; icoImg.raycastTarget = false;
+            }
+
             var lbl   = new GameObject("Lbl", typeof(RectTransform));
             lbl.transform.SetParent(go.transform, false);
             var lblRT = lbl.GetComponent<RectTransform>();
             lblRT.anchorMin = Vector2.zero; lblRT.anchorMax = Vector2.one;
-            lblRT.sizeDelta = new Vector2(-9f, 0f);
+            lblRT.offsetMin = new Vector2(icon != null ? 34f : 5f, 0f);
+            lblRT.offsetMax = new Vector2(-4f, 0f);
             var tmp = lbl.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) tmp.font = FontAsset;
             tmp.text               = label;
@@ -933,6 +993,18 @@ namespace SolarExpanseLaunchWindows
 
         private LaunchWindow? RetKey(string id)
             => retCache.TryGetValue(id, out var r) ? r.ret1 : null;
+
+        private Sprite GetBodyIcon(string bodyId)
+        {
+            try
+            {
+                var oi = ephem?.GetNBodyForId(bodyId)?.GetObjectInfo();
+                if (oi == null) return null;
+                const BindingFlags bfi = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                return oi.GetType().GetProperty("ImagePlanetUI", bfi)?.GetValue(oi) as Sprite;
+            }
+            catch { return null; }
+        }
 
         private void UpdateSortHeaders()
         {

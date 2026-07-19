@@ -273,8 +273,8 @@ namespace SolarExpanseLaunchWindows.UI
                 searchDropGO.SetActive(false);
 
                 // ── Presets dropdown overlay ──────────────────────────────────────────────────
-                // My Bases + one item per game ObjectInfoGroups (~8 total); scrolls if more.
-                var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 255f, 264f);
+                // My Bases + Planets + one item per game ObjectInfoGroups (~9 total); scrolls if more.
+                var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 275f, 296f);
                 presetsDropGO.SetActive(false);
 
                 // ── Options dropdown overlay (4 checkbox items + alert-days row) ──────────────

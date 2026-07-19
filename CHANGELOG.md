@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - **Presets dropdown** replaces the My Bases button. Contains My Bases plus one entry per in-game celestial body group (`ObjectInfoGroups`): Near-Earth Objects, Inner Belt, Middle Belt, Outer Belt, Jupiter Trojans, Kuiper Belt, etc. — the same classification the game's search window uses, listed sunward-out. Clicking a preset adds every group member known to the ephemeris.
 - **Clear** button in the panel header removes all destinations at once.
+- **Moon search**: searching a moon's name ("Ganymede") now matches, shown as "Ganymede → Jupiter" and adding the parent planet — the ephemeris is heliocentric, so moons resolve to their parents for transfer purposes.
+- **Icons**: search results and preset entries show the body/group icon before the name.
+- **Planets preset** (Mercury–Neptune, incl. Mars) directly after My Bases.
 - **Solar Orbit** is now a selectable origin in the From dropdown. The game models it as a virtual location (no orbit of its own, pinned to the Sun at a conventional 0.01 AU — `ObjectInfo.distanceSolarOrbitAU`), so the mod synthesizes a circular 0.01 AU heliocentric orbit in Earth's orbital plane for transfer computation. Real `EObjectTypes.SolarOrbit` bodies, if present in the scene, are accepted as origins too.
 - **Sortable columns**: Δv, Arrives, and Fuel sub-headers are now clickable sort toggles, like Departs (Fuel sorts by Δv, to which it is monotonic).
 - **Options dropdown** in the header (before Clear), persisted in the BepInEx config: *Show Δv column* (default off — column hidden), *Show next transfer window* (default off — hides the dimmed second row **and skips its computation**; re-enabling backfills via cheap partial recalcs), *Show Fastest* (default off — hides the Fastest section; its data rides along with the Optimal grid scan so this is a free visibility toggle), and *Show Return trip* (default on).

@@ -19,6 +19,18 @@ namespace SolarExpanseLaunchWindows
         private readonly Dictionary<string, NBody>   ellipseNBodiesById = new Dictionary<string, NBody>();
         private readonly Dictionary<string, double>  ellipsePeriodsById = new Dictionary<string, double>();
 
+        // Moon display name → parent planet body id. The ephemeris is heliocentric, so
+        // moons resolve to their parent planet for search ("Ganymede" → Jupiter).
+        private readonly Dictionary<string, string> moonAliases = new Dictionary<string, string>();
+        public IReadOnlyDictionary<string, string> MoonAliases => moonAliases;
+
+        internal void SetMoonAliases(Dictionary<string, string> aliases)
+        {
+            moonAliases.Clear();
+            foreach (var kv in aliases)
+                if (orbitsById.ContainsKey(kv.Value)) moonAliases[kv.Key] = kv.Value;
+        }
+
         public GameBodyEphemeris(
             Dictionary<string, OrbitUniversal> orbits,
             Dictionary<string, string>         names,
@@ -216,16 +228,34 @@ namespace SolarExpanseLaunchWindows
                 if (m > maxMu) maxMu = m;
             }
 
-            var orbits = new Dictionary<string, OrbitUniversal>();
-            var names  = new Dictionary<string, string>();
-            var types  = new Dictionary<string, EObjectTypes>();
+            var orbits  = new Dictionary<string, OrbitUniversal>();
+            var names   = new Dictionary<string, string>();
+            var types   = new Dictionary<string, EObjectTypes>();
+            var aliases = new Dictionary<string, string>(); // moon name → parent planet id
             double muThreshold = maxMu * 0.99;
+
+            void RecordMoonAlias(NBody nb, ObjectInfo info)
+            {
+                try
+                {
+                    var pNb = info?.ParentObjectInfo?.NBody;
+                    if (pNb != null && !string.IsNullOrEmpty(nb.name))
+                        aliases[nb.name] = pNb.GetInstanceID().ToString();
+                }
+                catch { }
+            }
+
             foreach (var entry in all)
             {
-                if (entry.mu < muThreshold) continue;
+                var info = entry.nb.GetObjectInfo();
+                if (entry.mu < muThreshold)
+                {
+                    if (info != null && info.objectTypes == EObjectTypes.Moons)
+                        RecordMoonAlias(entry.nb, info);
+                    continue;
+                }
                 var id = entry.nb.GetInstanceID().ToString();
                 orbits[id] = entry.orbit;
-                var info = entry.nb.GetObjectInfo();
                 types[id] = info != null ? info.objectTypes : EObjectTypes.None;
                 names[id] = entry.nb.name ?? id;
             }
@@ -240,7 +270,8 @@ namespace SolarExpanseLaunchWindows
                 if (ellipse == null) continue;
                 var info    = nb.GetObjectInfo();
                 var objType = info != null ? info.objectTypes : EObjectTypes.None;
-                if (objType == EObjectTypes.Moons || objType == EObjectTypes.Orbit) continue;
+                if (objType == EObjectTypes.Moons) { RecordMoonAlias(nb, info); continue; }
+                if (objType == EObjectTypes.Orbit) continue;
                 var id = nb.GetInstanceID().ToString();
                 names[id]            = nb.name ?? id;
                 types[id]            = objType;
@@ -259,6 +290,7 @@ namespace SolarExpanseLaunchWindows
             names[SolarOrbitId] = soName;
 
             var ephem = new GameBodyEphemeris(orbits, names, types, maxMu, ellipseNBodies, ellipsePeriods);
+            ephem.SetMoonAliases(aliases);
             ephem.TryInitSolarOrbit();
             return ephem;
         }
