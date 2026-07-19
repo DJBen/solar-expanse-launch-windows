@@ -1710,9 +1710,7 @@ namespace SolarExpanseLaunchWindows
             rDHlg.childControlHeight = true; rDHlg.childControlWidth = true;
             rDHlg.childForceExpandHeight = true; rDHlg.childForceExpandWidth = false;
             rDHlg.spacing = 0f;
-            var rCbSpacer = new GameObject("SP", typeof(RectTransform));
-            rCbSpacer.transform.SetParent(rDCell.transform, false);
-            rCbSpacer.AddComponent<LayoutElement>().preferredWidth = CB_W;
+            var retCb1 = MakeCheckboxButton(rDCell.transform);
             var rD    = MakeColLabel(rDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
             var rArr  = MakeColLabel(rGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W);
             var rDv   = MakeColLabel(rGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W);
@@ -1833,9 +1831,7 @@ namespace SolarExpanseLaunchWindows
             nrDHlg.childControlHeight = true; nrDHlg.childControlWidth = true;
             nrDHlg.childForceExpandHeight = true; nrDHlg.childForceExpandWidth = false;
             nrDHlg.spacing = 0f;
-            var nrCbSpacer = new GameObject("SP", typeof(RectTransform));
-            nrCbSpacer.transform.SetParent(nrDCell.transform, false);
-            nrCbSpacer.AddComponent<LayoutElement>().preferredWidth = CB_W;
+            var retCb2 = MakeCheckboxButton(nrDCell.transform, forRow2: true);
             var nrD   = MakeColLabel(nrDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
             var nrArr = MakeColLabel(nrGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W, dimC);
             var nrDv  = MakeColLabel(nrGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W, dimC);
@@ -1855,7 +1851,10 @@ namespace SolarExpanseLaunchWindows
             cb2.onClick.AddListener(()    => ToggleAlarmForRow(capDest, true,  false));
             fstCb1.onClick.AddListener(() => ToggleAlarmForRow(capDest, false, true));
             fstCb2.onClick.AddListener(() => ToggleAlarmForRow(capDest, true,  true));
-            rowCheckboxBtns[dId] = new[] { cb1, cb2, fstCb1, fstCb2 };
+            retCb1.onClick.AddListener(() => ToggleAlarmForReturnRow(capDest, false));
+            retCb2.onClick.AddListener(() => ToggleAlarmForReturnRow(capDest, true));
+            // idx: 0=opt1, 1=opt2, 2=fst1, 3=fst2, 4=ret1, 5=ret2
+            rowCheckboxBtns[dId] = new[] { cb1, cb2, fstCb1, fstCb2, retCb1, retCb2 };
         }
 
         private TextMeshProUGUI MakeDataGroup(Transform parent,
@@ -2035,10 +2034,13 @@ namespace SolarExpanseLaunchWindows
         {
             string destName   = ephem?.GetDisplayName(key.DestId)   ?? key.DestId;
             string originName = ephem?.GetDisplayName(key.OriginId) ?? key.OriginId;
-            string kind = key.IsFastest ? "fastest" : "optimal";
+            string kind = key.IsReturn ? "return" : (key.IsFastest ? "fastest" : "optimal");
+            // Return windows fly dest → origin.
+            string fromName = key.IsReturn ? destName : originName;
+            string toName   = key.IsReturn ? originName : destName;
 
-            if (!TryFireGameNotification(key.DestId, originName, destName, kind))
-                SpawnToast($"Launch window ({kind}): {originName} → {destName}");
+            if (!TryFireGameNotification(key.DestId, originName, destName, kind, reversed: key.IsReturn))
+                SpawnToast($"Launch window ({kind}): {fromName} → {toName}");
 
             UpdateAllCheckboxVisuals();
         }
@@ -2046,7 +2048,7 @@ namespace SolarExpanseLaunchWindows
         // Fire a real game notification so it appears in "New Notifications" and is saved.
         // Uses Schedule (13) which has locale text "Mission from {0} to {1} scheduled for {2}".
         // Game pauses if the player's pause-on-notification toggle is enabled.
-        private bool TryFireGameNotification(string destId, string originName, string destName, string kind)
+        private bool TryFireGameNotification(string destId, string originName, string destName, string kind, bool reversed = false)
         {
             try
             {
@@ -2130,6 +2132,7 @@ namespace SolarExpanseLaunchWindows
                     {
                         string originHL = originOI?.GetType().GetProperty("ObjectNameHighLight", bf)?.GetValue(originOI) as string ?? originName;
                         string destHL   = destOI?.GetType().GetProperty("ObjectNameHighLight", bf)?.GetValue(destOI) as string ?? destName;
+                        if (reversed) { var t2 = originHL; originHL = destHL; destHL = t2; } // return: dest → origin
                         tmp.text = $"{originHL} → {destHL}\nlaunch window ({kind}){(string.IsNullOrEmpty(dateStr) ? "" : " " + dateStr)}";
                     }
                 }
@@ -2305,6 +2308,25 @@ namespace SolarExpanseLaunchWindows
             UpdateCheckboxVisual(destId, idx, armed);
         }
 
+        private void ToggleAlarmForReturnRow(string destId, bool isRow2)
+        {
+            string dest = ephem?.GetDisplayName(destId) ?? destId;
+            if (!retCache.TryGetValue(destId, out var entry))
+            { Plugin.Log.LogInfo($"[LW] ToggleReturnAlarm '{dest}': no return cache entry"); return; }
+            LaunchWindow? window = isRow2 ? entry.ret2 : entry.ret1;
+            if (window == null)
+            { Plugin.Log.LogInfo($"[LW] ToggleReturnAlarm '{dest}': window slot is null (row2={isRow2})"); return; }
+            if (ephem == null || !TryEpochToDate(window.Value.DepartureEpoch, out var depDate))
+            { Plugin.Log.LogInfo($"[LW] ToggleReturnAlarm '{dest}': date unavailable"); return; }
+
+            var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, IsFastest = false, IsReturn = true };
+            if (!_alarms.Remove(key)) _alarms.Add(key);
+            _sidecarDirty = true;
+            bool armed = _alarms.Contains(key);
+            Plugin.Log.LogInfo($"[LW] ToggleReturnAlarm '{dest}': armed={armed} row2={isRow2}");
+            UpdateCheckboxVisual(destId, 4 + (isRow2 ? 1 : 0), armed);
+        }
+
         private bool TryEpochToDate(double epoch, out DateTime date)
         {
             date = default;
@@ -2338,10 +2360,12 @@ namespace SolarExpanseLaunchWindows
             {
                 if (!rowCheckboxBtns.TryGetValue(destId, out var btns)) continue;
                 cache.TryGetValue(destId, out var entry);
-                // idx: 0=opt1, 1=opt2, 2=fst1, 3=fst2
-                var windows    = new LaunchWindow?[] { entry.opt1, entry.opt2, entry.fst1, entry.fst2 };
-                var isFastests = new bool[]          { false,      false,      true,       true       };
-                for (int i = 0; i < 4; i++)
+                retCache.TryGetValue(destId, out var retEntry);
+                // idx: 0=opt1, 1=opt2, 2=fst1, 3=fst2, 4=ret1, 5=ret2
+                var windows    = new LaunchWindow?[] { entry.opt1, entry.opt2, entry.fst1, entry.fst2, retEntry.ret1, retEntry.ret2 };
+                var isFastests = new bool[]          { false,      false,      true,       true,       false,         false };
+                var isReturns  = new bool[]          { false,      false,      false,      false,      true,          true  };
+                for (int i = 0; i < windows.Length; i++)
                 {
                     if (i >= btns.Length) break;
                     var btn = btns[i];
@@ -2357,7 +2381,7 @@ namespace SolarExpanseLaunchWindows
                         continue;
                     }
                     btn.interactable = true;
-                    var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, IsFastest = isFastests[i] };
+                    var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, IsFastest = isFastests[i], IsReturn = isReturns[i] };
                     bool armed = _alarms.Contains(key);
                     if (img != null) img.color = armed ? CbCheckedBg : CbUncheckedBg;
                     if (tmp != null) { tmp.text = armed ? "✓" : "□"; tmp.color = armed ? CbCheckedFg : CbUncheckedFg; }
@@ -2447,7 +2471,7 @@ namespace SolarExpanseLaunchWindows
             _firedAlarms.Clear();
             _alarms.Clear();
             foreach (var a in _sidecarData.alarms ?? new List<LWAlarmSave>())
-                _alarms.Add(new AlarmKey { OriginId = a.originId, DestId = a.destId, Year = a.year, Month = a.month, IsFastest = a.isFastest });
+                _alarms.Add(new AlarmKey { OriginId = a.originId, DestId = a.destId, Year = a.year, Month = a.month, IsFastest = a.isFastest, IsReturn = a.isReturn });
 
             var ge2 = GravityEngine.Instance();
             double physNow2 = ge2 != null ? ge2.GetPhysicalTimeDouble() : 0;
@@ -2521,7 +2545,7 @@ namespace SolarExpanseLaunchWindows
 
                 var alarmsList = new List<LWAlarmSave>();
                 foreach (var a in _alarms)
-                    alarmsList.Add(new LWAlarmSave { originId = a.OriginId, destId = a.DestId, year = a.Year, month = a.Month, isFastest = a.IsFastest });
+                    alarmsList.Add(new LWAlarmSave { originId = a.OriginId, destId = a.DestId, year = a.Year, month = a.Month, isFastest = a.IsFastest, isReturn = a.IsReturn });
 
                 var cacheList = new List<LWDestCacheSave>();
                 foreach (var kv in cache)

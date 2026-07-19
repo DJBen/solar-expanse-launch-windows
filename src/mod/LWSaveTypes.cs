@@ -38,6 +38,7 @@ namespace SolarExpanseLaunchWindows
         public int    year;
         public int    month;
         public bool   isFastest = false;
+        public bool   isReturn  = false; // absent in old sidecars → defaults false
     }
 
     [Serializable]
