@@ -277,8 +277,8 @@ namespace SolarExpanseLaunchWindows.UI
                 var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 255f, 264f);
                 presetsDropGO.SetActive(false);
 
-                // ── Options dropdown overlay (4 checkbox items) ───────────────────────────────
-                var optionsDropGO = MakeDropdownPanel("LWOptionsDropdown", canvas.transform, font, 340f, 142f);
+                // ── Options dropdown overlay (4 checkbox items + alert-days row) ──────────────
+                var optionsDropGO = MakeDropdownPanel("LWOptionsDropdown", canvas.transform, font, 340f, 182f);
                 optionsDropGO.SetActive(false);
 
                 // ── Attach panel MonoBehaviour ────────────────────────────────────────────────
@@ -631,7 +631,7 @@ namespace SolarExpanseLaunchWindows.UI
             le.flexibleHeight  = 0f;
         }
 
-        static TMP_InputField MakeInputField(string name, Transform parent, TMP_FontAsset font,
+        internal static TMP_InputField MakeInputField(string name, Transform parent, TMP_FontAsset font,
                                               string placeholder, float height)
         {
             var go  = new GameObject(name, typeof(RectTransform));

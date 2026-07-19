@@ -11,6 +11,50 @@ namespace SolarExpanseLaunchWindowsTests
         private static AlarmKey Key(string origin, string dest, int year, int month, bool isFastest = false) =>
             new AlarmKey { OriginId = origin, DestId = dest, Year = year, Month = month, IsFastest = isFastest };
 
+        private static AlarmKey DayKey(string origin, string dest, int year, int month, int day) =>
+            new AlarmKey { OriginId = origin, DestId = dest, Year = year, Month = month, Day = day };
+
+        // ── GetAlarmsToFire (day-precise + alert-days-before) ────────────────────
+
+        [Test]
+        public void DayKey_FiresOnDepartureDay()
+        {
+            var alarms = new[] { DayKey("earth", "mars", 2030, 3, 15) };
+            var result = LWCacheHelper.GetAlarmsToFire(alarms, "earth", new DateTime(2030, 3, 15));
+            Assert.That(result, Has.Count.EqualTo(1));
+        }
+
+        [Test]
+        public void DayKey_AlertDaysBefore_ShiftsTriggerEarlier()
+        {
+            var alarms = new[] { DayKey("earth", "mars", 2030, 3, 15) };
+            Assert.That(LWCacheHelper.GetAlarmsToFire(alarms, "earth", new DateTime(2030, 3, 10), 5), Has.Count.EqualTo(1));
+            Assert.That(LWCacheHelper.GetAlarmsToFire(alarms, "earth", new DateTime(2030, 3, 9), 5), Is.Empty);
+        }
+
+        [Test]
+        public void DayKey_DoesNotFireBeforeTrigger()
+        {
+            var alarms = new[] { DayKey("earth", "mars", 2030, 3, 15) };
+            Assert.That(LWCacheHelper.GetAlarmsToFire(alarms, "earth", new DateTime(2030, 3, 14)), Is.Empty);
+        }
+
+        [Test]
+        public void DayKey_StaleCutoff_AfterOneMonth()
+        {
+            var alarms = new[] { DayKey("earth", "mars", 2030, 3, 15) };
+            Assert.That(LWCacheHelper.GetAlarmsToFire(alarms, "earth", new DateTime(2030, 4, 10)), Has.Count.EqualTo(1));
+            Assert.That(LWCacheHelper.GetAlarmsToFire(alarms, "earth", new DateTime(2030, 4, 16)), Is.Empty);
+        }
+
+        [Test]
+        public void LegacyMonthKey_IgnoresAlertDays()
+        {
+            var alarms = new[] { Key("earth", "mars", 2030, 3) }; // Day == 0
+            Assert.That(LWCacheHelper.GetAlarmsToFire(alarms, "earth", new DateTime(2030, 2, 27), 5), Is.Empty);
+            Assert.That(LWCacheHelper.GetAlarmsToFire(alarms, "earth", new DateTime(2030, 3, 1), 5), Has.Count.EqualTo(1));
+        }
+
         // ── GetAlarmsToFire ──────────────────────────────────────────────────────
 
         [Test]

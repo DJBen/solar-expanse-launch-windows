@@ -65,13 +65,30 @@ namespace SolarExpanseLaunchWindows
             return (cache, needsOpt2, needsFst);
         }
 
+        // alertDaysBefore shifts the trigger earlier by N days. Legacy alarms (Day == 0)
+        // keep the original month-granularity rule; day-precise alarms fire from
+        // (departure − N days) until one month after departure (stale-alarm cutoff).
         internal static List<AlarmKey> GetAlarmsToFire(
-            IEnumerable<AlarmKey> alarms, string currentOriginId, DateTime now)
+            IEnumerable<AlarmKey> alarms, string currentOriginId, DateTime now,
+            int alertDaysBefore = 0)
         {
             var result = new List<AlarmKey>();
             foreach (var key in alarms)
-                if (key.OriginId == currentOriginId && key.Year == now.Year && key.Month == now.Month)
-                    result.Add(key);
+            {
+                if (key.OriginId != currentOriginId) continue;
+                if (key.Day <= 0)
+                {
+                    if (key.Year == now.Year && key.Month == now.Month)
+                        result.Add(key);
+                }
+                else
+                {
+                    int day = Math.Min(key.Day, DateTime.DaysInMonth(key.Year, key.Month));
+                    var dep = new DateTime(key.Year, key.Month, day);
+                    if (now >= dep.AddDays(-alertDaysBefore) && now <= dep.AddMonths(1))
+                        result.Add(key);
+                }
+            }
             return result;
         }
 

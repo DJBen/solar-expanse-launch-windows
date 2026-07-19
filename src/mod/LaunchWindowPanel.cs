@@ -118,6 +118,8 @@ namespace SolarExpanseLaunchWindows
         private bool ShowNext    => Plugin.CfgShowNextWindow == null || Plugin.CfgShowNextWindow.Value;
         private bool ShowFastest => Plugin.CfgShowFastest != null && Plugin.CfgShowFastest.Value;
         private bool ShowReturn  => Plugin.CfgShowReturn == null || Plugin.CfgShowReturn.Value;
+        private int  AlertDaysBefore => Plugin.CfgAlertDaysBefore != null
+            ? Mathf.Clamp(Plugin.CfgAlertDaysBefore.Value, 0, 365) : 0;
         private HashSet<string> _originShipBodies;
 
         private volatile bool _calcDone;
@@ -444,6 +446,44 @@ namespace SolarExpanseLaunchWindows
                 RebuildAllRowsForLayout();
                 PopulateOptionsDropdown();
             });
+
+            // "Alert [N] day(s) before" — editable numeric field.
+            var alertRow = new GameObject("AlertRow", typeof(RectTransform));
+            alertRow.transform.SetParent(content, false);
+            alertRow.AddComponent<LayoutElement>().preferredHeight = 34f;
+            var alertHlg = alertRow.AddComponent<HorizontalLayoutGroup>();
+            alertHlg.childControlHeight = true; alertHlg.childControlWidth = true;
+            alertHlg.childForceExpandHeight = true; alertHlg.childForceExpandWidth = false;
+            alertHlg.spacing = 8f; alertHlg.padding = new RectOffset(9, 6, 3, 3);
+
+            TextMeshProUGUI AlertLbl(string text, float width, bool flex = false)
+            {
+                var go = new GameObject("L", typeof(RectTransform));
+                go.transform.SetParent(alertRow.transform, false);
+                var le = go.AddComponent<LayoutElement>();
+                if (flex) le.flexibleWidth = 1f; else le.preferredWidth = width;
+                var tmp = go.AddComponent<TextMeshProUGUI>();
+                if (FontAsset != null) tmp.font = FontAsset;
+                tmp.text = text; tmp.fontSize = 16f;
+                tmp.alignment = TextAlignmentOptions.Left;
+                tmp.color = Color.white; tmp.enableWordWrapping = false;
+                tmp.raycastTarget = false;
+                return tmp;
+            }
+
+            AlertLbl("Alert", 46f);
+            var daysInput = UI.LaunchWindowInjector.MakeInputField("AlertDays", alertRow.transform, FontAsset, "0", 28f);
+            var daysLE = daysInput.GetComponent<LayoutElement>();
+            if (daysLE != null) { daysLE.flexibleWidth = 0f; daysLE.preferredWidth = 56f; }
+            daysInput.contentType = TMP_InputField.ContentType.IntegerNumber;
+            daysInput.SetTextWithoutNotify(AlertDaysBefore.ToString());
+            daysInput.onEndEdit.AddListener(v => {
+                int.TryParse(v, out var days);
+                days = Mathf.Clamp(days, 0, 365);
+                if (Plugin.CfgAlertDaysBefore != null) Plugin.CfgAlertDaysBefore.Value = days;
+                daysInput.SetTextWithoutNotify(days.ToString());
+            });
+            AlertLbl("day(s) before", 0f, flex: true);
         }
 
         // Sub-header/column-header widths + section visibility + panel width for the
@@ -2020,7 +2060,7 @@ namespace SolarExpanseLaunchWindows
         private void CheckAlarms()
         {
             if (_alarms.Count == 0 || _clock == null) return;
-            var toFire = LWCacheHelper.GetAlarmsToFire(_alarms, OriginId, _clock.CurrentTime);
+            var toFire = LWCacheHelper.GetAlarmsToFire(_alarms, OriginId, _clock.CurrentTime, AlertDaysBefore);
             foreach (var key in toFire)
             {
                 _alarms.Remove(key);
@@ -2034,13 +2074,13 @@ namespace SolarExpanseLaunchWindows
         {
             string destName   = ephem?.GetDisplayName(key.DestId)   ?? key.DestId;
             string originName = ephem?.GetDisplayName(key.OriginId) ?? key.OriginId;
-            string kind = key.IsReturn ? "return" : (key.IsFastest ? "fastest" : "optimal");
+            string kind = key.IsReturn ? "Return" : (key.IsFastest ? "Fastest" : "Optimal");
             // Return windows fly dest → origin.
             string fromName = key.IsReturn ? destName : originName;
             string toName   = key.IsReturn ? originName : destName;
 
             if (!TryFireGameNotification(key.DestId, originName, destName, kind, reversed: key.IsReturn))
-                SpawnToast($"Launch window ({kind}): {fromName} → {toName}");
+                SpawnToast($"LAUNCH WINDOW ({kind}): {fromName} → {toName}");
 
             UpdateAllCheckboxVisuals();
         }
@@ -2094,8 +2134,8 @@ namespace SolarExpanseLaunchWindows
                 {
                     if (k.DestId == destId)
                     {
-                        dateStr = new System.DateTime(k.Year, k.Month, 1).ToString("MMM") +
-                                  " '" + (k.Year % 100).ToString("D2");
+                        int day = Math.Max(1, Math.Min(k.Day, DateTime.DaysInMonth(k.Year, k.Month)));
+                        dateStr = new DateTime(k.Year, k.Month, day).ToString("yy/MM/dd");
                         break;
                     }
                 }
@@ -2133,7 +2173,7 @@ namespace SolarExpanseLaunchWindows
                         string originHL = originOI?.GetType().GetProperty("ObjectNameHighLight", bf)?.GetValue(originOI) as string ?? originName;
                         string destHL   = destOI?.GetType().GetProperty("ObjectNameHighLight", bf)?.GetValue(destOI) as string ?? destName;
                         if (reversed) { var t2 = originHL; originHL = destHL; destHL = t2; } // return: dest → origin
-                        tmp.text = $"{originHL} → {destHL}\nlaunch window ({kind}){(string.IsNullOrEmpty(dateStr) ? "" : " " + dateStr)}";
+                        tmp.text = $"{originHL} → {destHL}\nLAUNCH WINDOW ({kind}){(string.IsNullOrEmpty(dateStr) ? "" : " " + dateStr)}";
                     }
                 }
 
@@ -2299,7 +2339,7 @@ namespace SolarExpanseLaunchWindows
             if (!TryEpochToDate(window.Value.DepartureEpoch, out var depDate))
             { Plugin.Log.LogInfo($"[LW] ToggleAlarm '{dest}': TryEpochToDate failed"); return; }
 
-            var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, IsFastest = isFastest };
+            var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, Day = depDate.Day, IsFastest = isFastest };
             if (!_alarms.Remove(key)) _alarms.Add(key);
             _sidecarDirty = true;
             bool armed = _alarms.Contains(key);
@@ -2319,7 +2359,7 @@ namespace SolarExpanseLaunchWindows
             if (ephem == null || !TryEpochToDate(window.Value.DepartureEpoch, out var depDate))
             { Plugin.Log.LogInfo($"[LW] ToggleReturnAlarm '{dest}': date unavailable"); return; }
 
-            var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, IsFastest = false, IsReturn = true };
+            var key = new AlarmKey { OriginId = OriginId, DestId = destId, Year = depDate.Year, Month = depDate.Month, Day = depDate.Day, IsFastest = false, IsReturn = true };
             if (!_alarms.Remove(key)) _alarms.Add(key);
             _sidecarDirty = true;
             bool armed = _alarms.Contains(key);
@@ -2471,7 +2511,7 @@ namespace SolarExpanseLaunchWindows
             _firedAlarms.Clear();
             _alarms.Clear();
             foreach (var a in _sidecarData.alarms ?? new List<LWAlarmSave>())
-                _alarms.Add(new AlarmKey { OriginId = a.originId, DestId = a.destId, Year = a.year, Month = a.month, IsFastest = a.isFastest, IsReturn = a.isReturn });
+                _alarms.Add(new AlarmKey { OriginId = a.originId, DestId = a.destId, Year = a.year, Month = a.month, Day = a.day, IsFastest = a.isFastest, IsReturn = a.isReturn });
 
             var ge2 = GravityEngine.Instance();
             double physNow2 = ge2 != null ? ge2.GetPhysicalTimeDouble() : 0;
@@ -2545,7 +2585,7 @@ namespace SolarExpanseLaunchWindows
 
                 var alarmsList = new List<LWAlarmSave>();
                 foreach (var a in _alarms)
-                    alarmsList.Add(new LWAlarmSave { originId = a.OriginId, destId = a.DestId, year = a.Year, month = a.Month, isFastest = a.IsFastest, isReturn = a.IsReturn });
+                    alarmsList.Add(new LWAlarmSave { originId = a.OriginId, destId = a.DestId, year = a.Year, month = a.Month, day = a.Day, isFastest = a.IsFastest, isReturn = a.IsReturn });
 
                 var cacheList = new List<LWDestCacheSave>();
                 foreach (var kv in cache)

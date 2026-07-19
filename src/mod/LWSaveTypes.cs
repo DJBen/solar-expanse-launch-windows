@@ -37,6 +37,7 @@ namespace SolarExpanseLaunchWindows
         public string destId    = "";
         public int    year;
         public int    month;
+        public int    day = 0;           // 0 in old sidecars → month-granularity firing
         public bool   isFastest = false;
         public bool   isReturn  = false; // absent in old sidecars → defaults false
     }
