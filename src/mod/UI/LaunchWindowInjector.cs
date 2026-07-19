@@ -122,18 +122,23 @@ namespace SolarExpanseLaunchWindows.UI
                 MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 15f, 158f, TextAlignmentOptions.Left, bold: true);
                 // 18px spacer + (groupW−18) labels keep OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
                 MakeColLabel("CHNT1", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
-                var ch1TMP = MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 15f, 425f, TextAlignmentOptions.Left, bold: true);
-                MakeColLabel("CHSep", colHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
-                MakeColLabel("CHNT2", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
-                var ch2TMP = MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 15f, 442f, TextAlignmentOptions.Left, bold: true);
+                var ch1TMP   = MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 15f, 425f, TextAlignmentOptions.Left, bold: true);
+                var chSepTMP = MakeColLabel("CHSep", colHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
+                var chNT2TMP = MakeColLabel("CHNT2", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
+                var ch2TMP   = MakeColLabel("CH2",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonFastest", "FASTEST"), 15f, 442f, TextAlignmentOptions.Left, bold: true);
+                var chSep2TMP = MakeColLabel("CHSep2", colHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
+                var chNT3TMP  = MakeColLabel("CHNT3",  colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
+                var ch3TMP    = MakeColLabel("CH3",    colHdrGO.transform, headerFont ?? font, "RETURN", 15f, 442f, TextAlignmentOptions.Left, bold: true);
 
                 // Row 4: Sub-header — cells must match LaunchWindowPanel OPT_*/FST_* constants.
                 // Optimal: dep=118 dv=95 arr=100 fuel=130 (443); Fastest: dep=120 dv=110 arr=100 fuel=130 (460)
                 var subHdrGO = MakeHRow("SubHdr", panelGO.transform, 21f, 0f);
                 MakeColLabel("SH0", subHdrGO.transform, font, "", 15f, 158f, TextAlignmentOptions.Left, muted: true);
                 var (optDepBtn, optDepTMP, optDvBtn, optDvTMP, optArrBtn, optArrTMP, optFuBtn, optFuTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: true);
-                MakeColLabel("SHSep", subHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
+                var shSepTMP = MakeColLabel("SHSep", subHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
                 var (fstDepBtn, fstDepTMP, fstDvBtn, fstDvTMP, fstArrBtn, fstArrTMP, fstFuBtn, fstFuTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: false);
+                var shSep2TMP = MakeColLabel("SHSep2", subHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
+                var (retDepBtn, retDepTMP, retDvBtn, retDvTMP, retArrBtn, retArrTMP, retFuBtn, retFuTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: false);
 
                 // Divider
                 Divider("Div", panelGO.transform);
@@ -272,8 +277,8 @@ namespace SolarExpanseLaunchWindows.UI
                 var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 255f, 264f);
                 presetsDropGO.SetActive(false);
 
-                // ── Options dropdown overlay (2 checkbox items) ───────────────────────────────
-                var optionsDropGO = MakeDropdownPanel("LWOptionsDropdown", canvas.transform, font, 340f, 76f);
+                // ── Options dropdown overlay (4 checkbox items) ───────────────────────────────
+                var optionsDropGO = MakeDropdownPanel("LWOptionsDropdown", canvas.transform, font, 340f, 142f);
                 optionsDropGO.SetActive(false);
 
                 // ── Attach panel MonoBehaviour ────────────────────────────────────────────────
@@ -294,8 +299,18 @@ namespace SolarExpanseLaunchWindows.UI
                 panel.OptionsBtn    = optionsBtn;
                 panel.OptDvHdrGO    = optDvBtn.gameObject;
                 panel.FstDvHdrGO    = fstDvBtn.gameObject;
+                panel.RetDvHdrGO    = retDvBtn.gameObject;
                 panel.OptColHdrLE   = ch1TMP.transform.parent.GetComponent<LayoutElement>();
                 panel.FstColHdrLE   = ch2TMP.transform.parent.GetComponent<LayoutElement>();
+                panel.RetColHdrLE   = ch3TMP.transform.parent.GetComponent<LayoutElement>();
+                panel.FstHdrGOs = new[] {
+                    chSepTMP.transform.parent.gameObject, chNT2TMP.transform.parent.gameObject,
+                    ch2TMP.transform.parent.gameObject, shSepTMP.transform.parent.gameObject,
+                    fstDvBtn.transform.parent.gameObject };
+                panel.RetHdrGOs = new[] {
+                    chSep2TMP.transform.parent.gameObject, chNT3TMP.transform.parent.gameObject,
+                    ch3TMP.transform.parent.gameObject, shSep2TMP.transform.parent.gameObject,
+                    retDvBtn.transform.parent.gameObject };
                 panel.SearchInput   = searchInput;
 
                 panel.OptDepHdrTMP  = optDepTMP;
@@ -306,6 +321,10 @@ namespace SolarExpanseLaunchWindows.UI
                 panel.FstArrHdrTMP  = fstArrTMP;
                 panel.OptFuelHdrTMP = optFuTMP;
                 panel.FstFuelHdrTMP = fstFuTMP;
+                panel.RetDepHdrTMP  = retDepTMP;
+                panel.RetDvHdrTMP   = retDvTMP;
+                panel.RetArrHdrTMP  = retArrTMP;
+                panel.RetFuelHdrTMP = retFuTMP;
                 panel.TableFontAsset = tableFont;
                 panel.CalcOverlayGO = calcOverlayGO;
 
@@ -324,6 +343,10 @@ namespace SolarExpanseLaunchWindows.UI
                 fstArrBtn.onClick.AddListener(panel.ToggleSortFstArr);
                 optFuBtn.onClick.AddListener(panel.ToggleSortOptFuel);
                 fstFuBtn.onClick.AddListener(panel.ToggleSortFstFuel);
+                retDepBtn.onClick.AddListener(panel.ToggleSortRetDep);
+                retDvBtn.onClick.AddListener(panel.ToggleSortRetDv);
+                retArrBtn.onClick.AddListener(panel.ToggleSortRetArr);
+                retFuBtn.onClick.AddListener(panel.ToggleSortRetFuel);
 
                 var refreshBtnComp = headerGO.transform.Find("RefreshBtn")?.GetComponent<Button>();
                 if (refreshBtnComp != null) refreshBtnComp.onClick.AddListener(panel.ForceRefresh);

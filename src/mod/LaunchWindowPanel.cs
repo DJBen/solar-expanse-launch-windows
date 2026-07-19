@@ -28,6 +28,10 @@ namespace SolarExpanseLaunchWindows
         internal TextMeshProUGUI FstArrHdrTMP;
         internal TextMeshProUGUI OptFuelHdrTMP;
         internal TextMeshProUGUI FstFuelHdrTMP;
+        internal TextMeshProUGUI RetDepHdrTMP;
+        internal TextMeshProUGUI RetDvHdrTMP;
+        internal TextMeshProUGUI RetArrHdrTMP;
+        internal TextMeshProUGUI RetFuelHdrTMP;
         internal TMP_FontAsset   TableFontAsset; // monospace-ish font for value cells; null → FontAsset
         internal Button          OriginBtn;
         internal Button          CraftBtn;
@@ -44,8 +48,12 @@ namespace SolarExpanseLaunchWindows
         internal Button          OptionsBtn;
         internal GameObject      OptDvHdrGO;      // sub-header Δv sort cell (Optimal side)
         internal GameObject      FstDvHdrGO;      // sub-header Δv sort cell (Fastest side)
+        internal GameObject      RetDvHdrGO;      // sub-header Δv sort cell (Return side)
         internal LayoutElement   OptColHdrLE;     // OPTIMAL column-header label width
         internal LayoutElement   FstColHdrLE;     // FASTEST column-header label width
+        internal LayoutElement   RetColHdrLE;     // RETURN column-header label width
+        internal GameObject[]    FstHdrGOs;       // header/sub-header pieces of the Fastest section
+        internal GameObject[]    RetHdrGOs;       // header/sub-header pieces of the Return section
         internal TMP_InputField  SearchInput;
         internal GameObject      CalcOverlayGO;
         internal TMP_InputField  OriginFilterInput;
@@ -82,7 +90,8 @@ namespace SolarExpanseLaunchWindows
         private double _craftFuel      = 0.0;
 
         // Sort state
-        private enum SortCol { None, OptDep, FstDep, OptDv, FstDv, OptArr, FstArr, OptFuel, FstFuel }
+        private enum SortCol { None, OptDep, FstDep, OptDv, FstDv, OptArr, FstArr, OptFuel, FstFuel,
+                               RetDep, RetDv, RetArr, RetFuel }
         private enum SortDir { Asc, Desc }
         private SortCol _sortCol = SortCol.OptDep;
         private SortDir _sortDir = SortDir.Asc;
@@ -105,8 +114,10 @@ namespace SolarExpanseLaunchWindows
         private bool  _optionsDropOpen;
 
         // Display options — persisted via BepInEx config (Options dropdown in the header).
-        private bool ShowDv   => Plugin.CfgShowDv == null || Plugin.CfgShowDv.Value;
-        private bool ShowNext => Plugin.CfgShowNextWindow == null || Plugin.CfgShowNextWindow.Value;
+        private bool ShowDv      => Plugin.CfgShowDv == null || Plugin.CfgShowDv.Value;
+        private bool ShowNext    => Plugin.CfgShowNextWindow == null || Plugin.CfgShowNextWindow.Value;
+        private bool ShowFastest => Plugin.CfgShowFastest != null && Plugin.CfgShowFastest.Value;
+        private bool ShowReturn  => Plugin.CfgShowReturn == null || Plugin.CfgShowReturn.Value;
         private HashSet<string> _originShipBodies;
 
         private volatile bool _calcDone;
@@ -130,6 +141,15 @@ namespace SolarExpanseLaunchWindows
         // Per-origin window cache — preserved across origin switches so no recalc on switch-back.
         private readonly Dictionary<string, Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>> _cacheByOrigin
             = new Dictionary<string, Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>>();
+
+        // Return-trip windows (dest → origin, departing after arrival), computed on demand
+        // when the Return section is visible. Kept separate from `cache` so the sidecar
+        // format is untouched; missing entries are backfilled by DoRefresh.
+        private readonly Dictionary<string, (LaunchWindow? ret1, LaunchWindow? ret2)> retCache
+            = new Dictionary<string, (LaunchWindow?, LaunchWindow?)>();
+        private readonly Dictionary<string, Dictionary<string, (LaunchWindow?, LaunchWindow?)>> _retCacheByOrigin
+            = new Dictionary<string, Dictionary<string, (LaunchWindow?, LaunchWindow?)>>();
+        private volatile Dictionary<string, (LaunchWindow?, LaunchWindow?)> _pendingRetCache;
 
         // Sidecar load/apply state
         private bool       _sidecarLoaded;
@@ -278,6 +298,7 @@ namespace SolarExpanseLaunchWindows
                     HideCraftDropdown();
                     ClearAllRowData();
                     _cacheByOrigin.Clear();
+                    _retCacheByOrigin.Clear();
                     _needsOpt2ByOrigin.Clear();
                     _needsFstByOrigin.Clear();
                     needsRefresh = true;
@@ -407,9 +428,27 @@ namespace SolarExpanseLaunchWindows
                 RebuildAllRowsForLayout();
                 PopulateOptionsDropdown();
             });
+            AddDropdownItem(content, (ShowFastest ? "■ " : "□ ") + "Show Fastest", false, () => {
+                if (Plugin.CfgShowFastest != null) Plugin.CfgShowFastest.Value = !ShowFastest;
+                // Fastest windows ride along with the Optimal grid scan, so they are
+                // always cached — this is purely a visibility toggle.
+                ApplySubHdrLayout();
+                RebuildAllRowsForLayout();
+                PopulateOptionsDropdown();
+            });
+            AddDropdownItem(content, (ShowReturn ? "■ " : "□ ") + "Show Return trip", false, () => {
+                if (Plugin.CfgShowReturn != null) Plugin.CfgShowReturn.Value = !ShowReturn;
+                // Missing return windows are backfilled on demand by DoRefresh
+                // (Calculating overlay shows while they compute).
+                ApplySubHdrLayout();
+                RebuildAllRowsForLayout();
+                PopulateOptionsDropdown();
+            });
         }
 
-        // Sub-header + column-header widths for the current ShowDv state.
+        // Sub-header/column-header widths + section visibility + panel width for the
+        // current ShowDv/ShowFastest/ShowReturn state. The Return section reuses the
+        // Fastest column widths.
         internal void ApplySubHdrLayout()
         {
             bool dv = ShowDv;
@@ -427,8 +466,28 @@ namespace SolarExpanseLaunchWindows
                 var le = FstDvHdrGO.transform.parent?.GetComponent<LayoutElement>();
                 if (le != null) le.preferredWidth = fstW;
             }
+            if (RetDvHdrGO != null)
+            {
+                RetDvHdrGO.SetActive(dv);
+                var le = RetDvHdrGO.transform.parent?.GetComponent<LayoutElement>();
+                if (le != null) le.preferredWidth = fstW;
+            }
             if (OptColHdrLE != null) OptColHdrLE.preferredWidth = optW - 18f;
             if (FstColHdrLE != null) FstColHdrLE.preferredWidth = fstW - 18f;
+            if (RetColHdrLE != null) RetColHdrLE.preferredWidth = fstW - 18f;
+
+            if (FstHdrGOs != null) foreach (var go in FstHdrGOs) if (go != null) go.SetActive(ShowFastest);
+            if (RetHdrGOs != null) foreach (var go in RetHdrGOs) if (go != null) go.SetActive(ShowReturn);
+
+            // Panel width tracks the visible sections (name 158 + × 21 + chrome 34).
+            if (PanelRT != null)
+            {
+                float total = 158f + optW
+                    + (ShowFastest ? 12f + fstW : 0f)
+                    + (ShowReturn  ? 12f + fstW : 0f)
+                    + 21f + 34f;
+                PanelRT.sizeDelta = new Vector2(total, PanelRT.sizeDelta.y);
+            }
         }
 
         // Destroy every row so CreateRow rebuilds them under the current options.
@@ -545,12 +604,15 @@ namespace SolarExpanseLaunchWindows
                     if (prevOriginId != null)
                     {
                         _cacheByOrigin[prevOriginId] = new Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>(cache);
+                        _retCacheByOrigin[prevOriginId] = new Dictionary<string, (LaunchWindow?, LaunchWindow?)>(retCache);
                         _needsOpt2ByOrigin[prevOriginId] = new HashSet<string>(_needsOpt2Recalc);
                         _needsFstByOrigin[prevOriginId]  = new HashSet<string>(_needsFstRecalc);
                     }
                     ClearAllRowData();
                     _needsOpt2Recalc.Clear();
                     _needsFstRecalc.Clear();
+                    if (_retCacheByOrigin.TryGetValue(OriginId ?? "", out var retSaved))
+                        foreach (var kv in retSaved) retCache[kv.Key] = kv.Value;
                     if (_cacheByOrigin.TryGetValue(OriginId ?? "", out var saved))
                     {
                         foreach (var kv in saved) cache[kv.Key] = kv.Value;
@@ -740,6 +802,10 @@ namespace SolarExpanseLaunchWindows
         internal void ToggleSortFstArr() => ToggleSort(SortCol.FstArr);
         internal void ToggleSortOptFuel() => ToggleSort(SortCol.OptFuel);
         internal void ToggleSortFstFuel() => ToggleSort(SortCol.FstFuel);
+        internal void ToggleSortRetDep()  => ToggleSort(SortCol.RetDep);
+        internal void ToggleSortRetDv()   => ToggleSort(SortCol.RetDv);
+        internal void ToggleSortRetArr()  => ToggleSort(SortCol.RetArr);
+        internal void ToggleSortRetFuel() => ToggleSort(SortCol.RetFuel);
 
         private void ToggleSort(SortCol col)
         {
@@ -783,9 +849,16 @@ namespace SolarExpanseLaunchWindows
                 // Fuel is monotonic in Δv for the selected craft, so Δv is the sort key.
                 case SortCol.OptFuel: return e.opt1?.DeltaVKmS ?? double.MaxValue;
                 case SortCol.FstFuel: return e.fst1?.DeltaVKmS ?? double.MaxValue;
+                case SortCol.RetDep:  return RetKey(id)?.DepartureEpoch ?? double.MaxValue;
+                case SortCol.RetArr:  return RetKey(id)?.ArrivalEpoch ?? double.MaxValue;
+                case SortCol.RetDv:
+                case SortCol.RetFuel: return RetKey(id)?.DeltaVKmS ?? double.MaxValue;
                 default:             return double.MaxValue;
             }
         }
+
+        private LaunchWindow? RetKey(string id)
+            => retCache.TryGetValue(id, out var r) ? r.ret1 : null;
 
         private void UpdateSortHeaders()
         {
@@ -806,6 +879,14 @@ namespace SolarExpanseLaunchWindows
                 OptFuelHdrTMP.text = _sortCol == SortCol.OptFuel ? "Fuel (E/F)" + suf : "Fuel (E/F)";
             if (FstFuelHdrTMP != null)
                 FstFuelHdrTMP.text = _sortCol == SortCol.FstFuel ? "Fuel (E/F)" + suf : "Fuel (E/F)";
+            if (RetDepHdrTMP != null)
+                RetDepHdrTMP.text = _sortCol == SortCol.RetDep ? "Departs" + suf : "Departs";
+            if (RetDvHdrTMP != null)
+                RetDvHdrTMP.text = _sortCol == SortCol.RetDv ? "Δv" + suf : "Δv";
+            if (RetArrHdrTMP != null)
+                RetArrHdrTMP.text = _sortCol == SortCol.RetArr ? "Arrives" + suf : "Arrives";
+            if (RetFuelHdrTMP != null)
+                RetFuelHdrTMP.text = _sortCol == SortCol.RetFuel ? "Fuel (E/F)" + suf : "Fuel (E/F)";
         }
 
         private void TrySelectBestCraft()
@@ -1122,6 +1203,7 @@ namespace SolarExpanseLaunchWindows
         private void ClearAllRowData()
         {
             cache.Clear();
+            retCache.Clear();
             foreach (var tmps in rowTMPs.Values)
                 foreach (var tmp in tmps)
                     if (tmp != null) { tmp.text = "—"; tmp.color = DashColor; }
@@ -1158,6 +1240,9 @@ namespace SolarExpanseLaunchWindows
             var toCalcPartial      = new List<(string dId, LaunchWindow opt1, LaunchWindow? fst1)>();
             var toCalcFstPartial   = new List<(string dId, LaunchWindow opt1, LaunchWindow? opt2)>();
             bool showNextSnap = ShowNext; // skip second-window (next synodic) calcs when hidden
+            bool showRetSnap  = ShowReturn;
+            var retSnapDict   = new Dictionary<string, (LaunchWindow? ret1, LaunchWindow? ret2)>(retCache);
+            var toCalcRet     = new List<(string dId, LaunchWindow opt1, LaunchWindow? opt2)>();
             foreach (var dId in destSnap)
             {
                 if (dId == originId) continue;
@@ -1167,9 +1252,15 @@ namespace SolarExpanseLaunchWindows
                     toCalcPartial.Add((dId, ce.opt1.Value, ce.fst1));
                 else if (needsFstSnap.Contains(dId) && cache.TryGetValue(dId, out var ce2) && ce2.opt1.HasValue)
                     toCalcFstPartial.Add((dId, ce2.opt1.Value, ce2.opt2));
+                else if (showRetSnap && cache.TryGetValue(dId, out var ce3) && ce3.opt1.HasValue &&
+                         (!retSnapDict.TryGetValue(dId, out var rr) ||
+                          (showNextSnap && ce3.opt2.HasValue && rr.ret2 == null)))
+                    // On-demand return backfill: Return section just enabled, sidecar
+                    // load, or next-window row newly available.
+                    toCalcRet.Add((dId, ce3.opt1.Value, ce3.opt2));
             }
 
-            if (toCalcFull.Count == 0 && toCalcPartial.Count == 0 && toCalcFstPartial.Count == 0)
+            if (toCalcFull.Count == 0 && toCalcPartial.Count == 0 && toCalcFstPartial.Count == 0 && toCalcRet.Count == 0)
             {
                 // Everything is cached — rebuild UI immediately without a background thread.
                 refreshing = false;
@@ -1193,7 +1284,20 @@ namespace SolarExpanseLaunchWindows
             var t = new System.Threading.Thread(() =>
             {
                 var results     = new Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>();
+                var retResults  = new Dictionary<string, (LaunchWindow?, LaunchWindow?)>();
                 var resultsLock = new object();
+
+                // Return trip: first optimal window dest → origin departing after arrival.
+                (LaunchWindow?, LaunchWindow?) CalcReturn(WindowFinder f, string dId,
+                    LaunchWindow? outb1, LaunchWindow? outb2)
+                {
+                    LaunchWindow? r1 = null, r2 = null;
+                    if (outb1.HasValue)
+                        r1 = f.FindWindows(dId, originId, outb1.Value.ArrivalEpoch, dvCap).optimal;
+                    if (showNextSnap && outb2.HasValue)
+                        r2 = f.FindWindows(dId, originId, outb2.Value.ArrivalEpoch, dvCap).optimal;
+                    return (r1, r2);
+                }
                 var parallelOpts = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 2) };
 
                 // Full recalcs: two FindWindows calls (opt1 + opt2).
@@ -1221,6 +1325,19 @@ namespace SolarExpanseLaunchWindows
                             entry = (null, null, null, null);
                         }
                         lock (resultsLock) { results[dId] = entry; }
+                        if (showRetSnap)
+                        {
+                            try
+                            {
+                                var ret = CalcReturn(localFinder, dId, entry.opt1, entry.opt2);
+                                lock (resultsLock) { retResults[dId] = ret; }
+                            }
+                            catch (Exception ex)
+                            {
+                                Plugin.Log.LogError($"[LW] FindWindows return {dId}: {ex.Message}");
+                                lock (resultsLock) { retResults[dId] = (null, null); }
+                            }
+                        }
                         return localFinder;
                     },
                     _ => { }
@@ -1244,6 +1361,13 @@ namespace SolarExpanseLaunchWindows
                                 : item.opt1.DepartureEpoch;
                             var (o2, f2, _) = localFinder.FindWindows(originId, item.dId, startTime, dvCap);
                             lock (resultsLock) { results[item.dId] = (item.opt1, item.fst1, o2, f2); }
+                            if (showRetSnap && o2.HasValue)
+                            {
+                                // Keep the cached ret1; only the new second window needs a return.
+                                LaunchWindow? keep1 = retSnapDict.TryGetValue(item.dId, out var prev) ? prev.ret1 : null;
+                                var r2 = localFinder.FindWindows(item.dId, originId, o2.Value.ArrivalEpoch, dvCap).optimal;
+                                lock (resultsLock) { retResults[item.dId] = (keep1, r2); }
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -1285,6 +1409,29 @@ namespace SolarExpanseLaunchWindows
                     localFinder => { }
                 );
 
+                // Return-only backfills (Return section enabled with outbound windows cached).
+                Parallel.ForEach<(string dId, LaunchWindow opt1, LaunchWindow? opt2), WindowFinder>(
+                    toCalcRet,
+                    parallelOpts,
+                    () => new WindowFinder(new GameLambertSolver(), ephemSnap, dvToKmSSnap),
+                    (item, _, localFinder) =>
+                    {
+                        try
+                        {
+                            var ret = CalcReturn(localFinder, item.dId, item.opt1, item.opt2);
+                            lock (resultsLock) { retResults[item.dId] = ret; }
+                        }
+                        catch (Exception ex)
+                        {
+                            Plugin.Log.LogError($"[LW] FindWindows return {item.dId}: {ex.Message}");
+                            lock (resultsLock) { retResults[item.dId] = (null, null); }
+                        }
+                        return localFinder;
+                    },
+                    _ => { }
+                );
+
+                _pendingRetCache = retResults;
                 _pendingCache = results;
                 _calcDone = true;   // volatile write: flush _pendingCache before signalling
             });
@@ -1300,6 +1447,11 @@ namespace SolarExpanseLaunchWindows
                 // Merge new results; existing valid cache entries for un-recalculated dests survive.
                 foreach (var kv in _pendingCache) cache[kv.Key] = kv.Value;
                 _pendingCache = null;
+                if (_pendingRetCache != null)
+                {
+                    foreach (var kv in _pendingRetCache) retCache[kv.Key] = kv.Value;
+                    _pendingRetCache = null;
+                }
                 _needsOpt2Recalc.Clear();
                 _needsFstRecalc.Clear();
                 RebuildRows();
@@ -1360,10 +1512,17 @@ namespace SolarExpanseLaunchWindows
                     // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
                     // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
                     // [12]=opt1Fuel [13]=fst1Fuel [14]=opt2Fuel [15]=fst2Fuel
+                    // [16..19]=ret1 dep/dv/arr/fuel [20..23]=ret2 dep/dv/arr/fuel
                     SetWindowCells(entry.opt1, tmps[0], tmps[1], tmps[2], tmps[12], ge);
                     SetWindowCells(entry.fst1, tmps[3], tmps[4], tmps[5], tmps[13], ge);
                     SetNextCells(entry.opt2, tmps[6], tmps[7], tmps[8], tmps[14], ge);
                     SetNextCells(entry.fst2, tmps[9], tmps[10], tmps[11], tmps[15], ge);
+                    if (tmps.Length >= 24)
+                    {
+                        retCache.TryGetValue(dId, out var re);
+                        SetWindowCells(re.ret1, tmps[16], tmps[17], tmps[18], tmps[19], ge);
+                        SetNextCells(re.ret2, tmps[20], tmps[21], tmps[22], tmps[23], ge);
+                    }
                 }
             }
         }
@@ -1507,6 +1666,7 @@ namespace SolarExpanseLaunchWindows
             var sep1 = new GameObject("Sep", typeof(RectTransform));
             sep1.transform.SetParent(inner.transform, false);
             sep1.AddComponent<LayoutElement>().preferredWidth = 12f;
+            sep1.SetActive(ShowFastest);
             // Fastest group — inline with checkbox, matching optimal group structure
             var fGroup = new GameObject("FstCol", typeof(RectTransform));
             fGroup.transform.SetParent(inner.transform, false);
@@ -1528,6 +1688,37 @@ namespace SolarExpanseLaunchWindows
             var fDv    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W);
             if (!ShowDv) fDv.transform.parent.gameObject.SetActive(false);
             var fFu    = MakeColLabel(fGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W);
+            fGroup.SetActive(ShowFastest);
+
+            // Return group — first optimal window back to the origin after arrival.
+            // Same column layout as Fastest; an 18px spacer stands in for the checkbox.
+            var rsep = new GameObject("RSep", typeof(RectTransform));
+            rsep.transform.SetParent(inner.transform, false);
+            rsep.AddComponent<LayoutElement>().preferredWidth = 12f;
+            rsep.SetActive(ShowReturn);
+            var rGroup = new GameObject("RetCol", typeof(RectTransform));
+            rGroup.transform.SetParent(inner.transform, false);
+            rGroup.AddComponent<LayoutElement>().preferredWidth = fstGrpW;
+            var rHlg = rGroup.AddComponent<HorizontalLayoutGroup>();
+            rHlg.childControlHeight = true; rHlg.childControlWidth = true;
+            rHlg.childForceExpandHeight = true; rHlg.childForceExpandWidth = false;
+            rHlg.spacing = 0f;
+            var rDCell = new GameObject("RDepC", typeof(RectTransform));
+            rDCell.transform.SetParent(rGroup.transform, false);
+            rDCell.AddComponent<LayoutElement>().preferredWidth = FST_DEP_W;
+            var rDHlg = rDCell.AddComponent<HorizontalLayoutGroup>();
+            rDHlg.childControlHeight = true; rDHlg.childControlWidth = true;
+            rDHlg.childForceExpandHeight = true; rDHlg.childForceExpandWidth = false;
+            rDHlg.spacing = 0f;
+            var rCbSpacer = new GameObject("SP", typeof(RectTransform));
+            rCbSpacer.transform.SetParent(rDCell.transform, false);
+            rCbSpacer.AddComponent<LayoutElement>().preferredWidth = CB_W;
+            var rD    = MakeColLabel(rDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W);
+            var rArr  = MakeColLabel(rGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W);
+            var rDv   = MakeColLabel(rGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W);
+            if (!ShowDv) rDv.transform.parent.gameObject.SetActive(false);
+            var rFu   = MakeColLabel(rGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W);
+            rGroup.SetActive(ShowReturn);
 
             // Trailing × delete button (21px, far right of the primary row)
             var xGO  = new GameObject("X", typeof(RectTransform));
@@ -1599,6 +1790,7 @@ namespace SolarExpanseLaunchWindows
             var sep2 = new GameObject("Sep2", typeof(RectTransform));
             sep2.transform.SetParent(inner2.transform, false);
             sep2.AddComponent<LayoutElement>().preferredWidth = 12f;
+            sep2.SetActive(ShowFastest);
             // Row-2 fst group: same width as row1's fGroup so every column lands at the same x.
             var noFGroup = new GameObject("FstCol2", typeof(RectTransform));
             noFGroup.transform.SetParent(inner2.transform, false);
@@ -1620,11 +1812,43 @@ namespace SolarExpanseLaunchWindows
             var nfDv  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W,  dimC);
             if (!ShowDv) nfDv.transform.parent.gameObject.SetActive(false);
             var nfFu  = MakeColLabel(noFGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W, dimC);
+            noFGroup.SetActive(ShowFastest);
+
+            // Row-2 return group — mirrors row1's rGroup.
+            var rsep2 = new GameObject("RSep2", typeof(RectTransform));
+            rsep2.transform.SetParent(inner2.transform, false);
+            rsep2.AddComponent<LayoutElement>().preferredWidth = 12f;
+            rsep2.SetActive(ShowReturn);
+            var nrGroup = new GameObject("RetCol2", typeof(RectTransform));
+            nrGroup.transform.SetParent(inner2.transform, false);
+            nrGroup.AddComponent<LayoutElement>().preferredWidth = fstGrpW;
+            var nrHlg = nrGroup.AddComponent<HorizontalLayoutGroup>();
+            nrHlg.childControlHeight = true; nrHlg.childControlWidth = true;
+            nrHlg.childForceExpandHeight = true; nrHlg.childForceExpandWidth = false;
+            nrHlg.spacing = 0f;
+            var nrDCell = new GameObject("RDepC2", typeof(RectTransform));
+            nrDCell.transform.SetParent(nrGroup.transform, false);
+            nrDCell.AddComponent<LayoutElement>().preferredWidth = FST_DEP_W;
+            var nrDHlg = nrDCell.AddComponent<HorizontalLayoutGroup>();
+            nrDHlg.childControlHeight = true; nrDHlg.childControlWidth = true;
+            nrDHlg.childForceExpandHeight = true; nrDHlg.childForceExpandWidth = false;
+            nrDHlg.spacing = 0f;
+            var nrCbSpacer = new GameObject("SP", typeof(RectTransform));
+            nrCbSpacer.transform.SetParent(nrDCell.transform, false);
+            nrCbSpacer.AddComponent<LayoutElement>().preferredWidth = CB_W;
+            var nrD   = MakeColLabel(nrDCell.transform, "—", 15f, TextAlignmentOptions.Left, FST_DEP_W - CB_W, dimC);
+            var nrArr = MakeColLabel(nrGroup.transform, "—", 15f, TextAlignmentOptions.Left, ARR_W, dimC);
+            var nrDv  = MakeColLabel(nrGroup.transform, "—", 15f, TextAlignmentOptions.Left, FST_DV_W, dimC);
+            if (!ShowDv) nrDv.transform.parent.gameObject.SetActive(false);
+            var nrFu  = MakeColLabel(nrGroup.transform, "—", 15f, TextAlignmentOptions.Left, FUEL_W, dimC);
+            nrGroup.SetActive(ShowReturn);
 
             // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
             // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
             // [12]=opt1Fuel [13]=fst1Fuel [14]=opt2Fuel [15]=fst2Fuel
-            rowTMPs[dId] = new[] { oD, oDv, oTvl, fD, fDv, fTvl, noD, noDv, noTvl, nfD, nfDv, nfTvl, oFu, fFu, noFu, nfFu };
+            // [16..19]=ret1 dep/dv/arr/fuel [20..23]=ret2 dep/dv/arr/fuel
+            rowTMPs[dId] = new[] { oD, oDv, oTvl, fD, fDv, fTvl, noD, noDv, noTvl, nfD, nfDv, nfTvl, oFu, fFu, noFu, nfFu,
+                                   rD, rDv, rArr, rFu, nrD, nrDv, nrArr, nrFu };
 
             var capDest = dId;
             cb1.onClick.AddListener(()    => ToggleAlarmForRow(capDest, false, false));
@@ -1659,6 +1883,7 @@ namespace SolarExpanseLaunchWindows
             DestIds.Remove(dId);
             _sidecarDirty = true;
             cache.Remove(dId);
+            retCache.Remove(dId);
             rowTMPs.Remove(dId);
             rowNameTMPs.Remove(dId);
             rowIconImgs.Remove(dId);

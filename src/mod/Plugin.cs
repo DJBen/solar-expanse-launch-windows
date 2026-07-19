@@ -13,6 +13,8 @@ namespace SolarExpanseLaunchWindows
         // Display options (Options dropdown in the panel header); persisted by BepInEx.
         internal static ConfigEntry<bool> CfgShowDv;
         internal static ConfigEntry<bool> CfgShowNextWindow;
+        internal static ConfigEntry<bool> CfgShowFastest;
+        internal static ConfigEntry<bool> CfgShowReturn;
 
         void Awake()
         {
@@ -22,6 +24,10 @@ namespace SolarExpanseLaunchWindows
                 "Show the Δv column in the launch windows table.");
             CfgShowNextWindow = Config.Bind("UI", "ShowNextWindow", false,
                 "Show (and compute) the second, next-synodic transfer window row per destination. Off is faster.");
+            CfgShowFastest = Config.Bind("UI", "ShowFastest", false,
+                "Show the Fastest (Δv-capped) transfer window section.");
+            CfgShowReturn = Config.Bind("UI", "ShowReturn", true,
+                "Show (and compute on demand) the Return section: the first optimal window from the destination back to the origin after arrival.");
             Log.LogInfo("Solar Expanse Launch Windows loaded");
             new Harmony("com.stockmaj.solar-expanse-launch-windows").PatchAll();
         }
