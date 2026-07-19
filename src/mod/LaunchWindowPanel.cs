@@ -1157,22 +1157,31 @@ namespace SolarExpanseLaunchWindows
                 // available for planning.
                 try
                 {
-                    var asomType = asm.GetType("AllScriptableObjectManager")
-                                ?? asm.GetType("Data.ScriptableObject.AllScriptableObjectManager");
+                    var asomType = asm.GetType("Manager.AllScriptableObjectManager")
+                                ?? asm.GetType("AllScriptableObjectManager");
                     var asom = asomType != null ? UnityEngine.Object.FindObjectOfType(asomType) : null;
                     var allSct = asom?.GetType().GetProperty("AllSpacecraftType", bf)?.GetValue(asom)
                               ?? asom?.GetType().GetField("allSpacecraftType", bf)?.GetValue(asom);
                     var mUnlock = allSct?.GetType().GetMethods(bf)
                         .FirstOrDefault(m => m.Name == "GetUnlockRocketType" && m.GetParameters().Length == 1);
                     if (mUnlock != null && mUnlock.Invoke(allSct, new[] { player }) is IEnumerable unlocked)
+                    {
+                        int before = typeObjs.Count;
                         foreach (var t in unlocked)
                             if (t != null && seen.Add(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(t)))
                                 typeObjs.Add(t);
+                        if (!_craftLogged)
+                            Plugin.Log.LogInfo($"[LW] GetAllCraftDv: +{typeObjs.Count - before} unlocked type(s) beyond built ships");
+                    }
+                    else if (!_craftLogged)
+                        Plugin.Log.LogWarning($"[LW] GetAllCraftDv: unlocked-type lookup failed (type={(asomType != null)} inst={(asom != null)} list={(allSct != null)})");
                 }
                 catch (Exception ex) { Plugin.Log.LogWarning($"[LW] GetAllCraftDv unlocked types: {ex.Message}"); }
 
                 foreach (var scType in typeObjs)
                 {
+                    try
+                    {
                     var scTypeType = scType.GetType();
                     bool isSolar = Convert.ToBoolean(scTypeType.GetProperty("SolarSC", bf)?.GetValue(scType));
 
@@ -1235,6 +1244,12 @@ namespace SolarExpanseLaunchWindows
                         else         Plugin.Log.LogInfo($"[LW] craft '{scName}': exhaustV={exhaustV:F3} mass={emptyMass:F1} fuel={fuel:F1} maxCargo={maxCargo:F1} maxDv={maxDvKmS:F1}km/s");
                     }
                     result.Add((scName, maxDvKmS, maxCargo, exhaustV, emptyMass, fuel, solarRangeAU, scIcon));
+                    }
+                    catch (Exception ex)
+                    {
+                        // One broken type must not empty the whole craft list.
+                        Plugin.Log.LogWarning($"[LW] GetAllCraftDv: craft type extraction failed: {ex.Message}");
+                    }
                 }
 
                 if (result.Count == 0)
