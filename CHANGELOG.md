@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Travel column replaced by **Arrives** (estimated arrival date); Departs and Arrives both use `yy/MM/dd` format (e.g. 26/07/18).
 - Both opportunity rows now use the same 15pt value font (first row is no longer larger — dimming alone distinguishes the next window), and the Δv columns are narrower (95/110px).
 ### Fixed
+- Runtime-created asteroids (the game spawns randomly generated NEOs like LU4-6533 during play) were invisible to search and skipped by presets because the ephemeris was built once per session. It now rebuilds on panel open / Refresh, and a preset add that meets an unknown group member forces a rebuild before adding.
+- Undiscovered bodies (not yet found by the player) are shown with a greyed-out name instead of white — the game's own lists hide them entirely.
 - Mouse-wheel scrolling now works from anywhere over the destination list, not only when hovering raycastable elements like body names.
 - Fuel figures exceeding the craft's tank capacity (`GetFuelCapacity`) are flagged red — the Fastest Δv cap assumes an empty craft with full tanks, so full-cargo loads can require more propellant than the tank holds.
 - Departure column widened (62→72 / 70→80 px) so the sort arrow ("Departs ▲/▼") is no longer ellipsized at the larger font size.

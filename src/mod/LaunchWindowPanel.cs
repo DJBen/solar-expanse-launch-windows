@@ -196,7 +196,24 @@ namespace SolarExpanseLaunchWindows
 
         internal void ForceRefresh()
         {
+            // Rebuild the ephemeris so bodies spawned since the last build (the game
+            // creates asteroids at runtime, e.g. randomly generated NEOs) become
+            // searchable and preset-addable. Fires on panel open and the Refresh button.
+            TryBuildEphem(force: true);
+            RefreshOriginIdsPreservingSelection();
             needsRefresh = true;
+        }
+
+        private void RefreshOriginIdsPreservingSelection()
+        {
+            if (ephem == null) return;
+            var fresh = ephem.GetSortedOriginIds();
+            if (fresh.Count == 0) return;
+            var cur = OriginId;
+            originIds = fresh;
+            int idx = cur != null ? originIds.IndexOf(cur) : -1;
+            originIndex = idx >= 0 ? idx : 0;
+            UpdateOriginLabel();
         }
 
         internal void ClosePanel()
@@ -582,6 +599,23 @@ namespace SolarExpanseLaunchWindows
             TryBuildEphem();
             if (ephem == null || group == null) return;
 
+            // Runtime-created asteroids may postdate the ephemeris build; if any group
+            // member is unknown, rebuild once so it becomes addable.
+            var known = new HashSet<string>(ephem.AllBodyIds);
+            foreach (var oi in group.objectInGroup)
+            {
+                NBody sNb = null;
+                try { sNb = oi != null && !oi.IsInGameDestroy ? oi.NBody : null; } catch { }
+                if (sNb != null && !known.Contains(sNb.GetInstanceID().ToString()))
+                {
+                    Plugin.Log.LogInfo($"[LW] AddGroupBodies: unknown member '{sNb.name}' — rebuilding ephemeris");
+                    TryBuildEphem(force: true);
+                    if (ephem == null) return;
+                    known = new HashSet<string>(ephem.AllBodyIds);
+                    break;
+                }
+            }
+
             int added = 0;
             foreach (var oi in group.objectInGroup)
             {
@@ -591,7 +625,7 @@ namespace SolarExpanseLaunchWindows
                 if (nb == null) continue;
                 string id = nb.GetInstanceID().ToString();
                 if (id == OriginId || DestIds.Contains(id)) continue;
-                if (!ephem.AllBodyIds.Contains(id)) continue;
+                if (!known.Contains(id)) continue;
                 DestIds.Add(id);
                 _sidecarDirty = true;
                 added++;
@@ -1544,8 +1578,17 @@ namespace SolarExpanseLaunchWindows
                     double dist = ephem.GetState(dId, physNow).Position.Magnitude;
                     outOfRange = dist > _craftSolarRangeAU;
                 }
+                // Grey out bodies the player hasn't discovered yet (the game's own
+                // lists hide them; the mod shows them dimmed instead).
+                bool undiscovered = false;
+                try
+                {
+                    var oiD = ephem?.GetNBodyForId(dId)?.GetObjectInfo();
+                    undiscovered = oiD != null && !oiD.IsDiscoveredForPlayerCache;
+                }
+                catch { }
                 if (rowNameTMPs.TryGetValue(dId, out var nameTMP))
-                    nameTMP.color = outOfRange ? new Color(0.45f, 0.45f, 0.45f) : Color.white;
+                    nameTMP.color = (outOfRange || undiscovered) ? new Color(0.45f, 0.45f, 0.45f) : Color.white;
 
                 if (cache.TryGetValue(dId, out var entry))
                 {
