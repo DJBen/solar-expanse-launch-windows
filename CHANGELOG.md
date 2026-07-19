@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Presets dropdown** replaces the My Bases button. Contains My Bases plus one entry per in-game celestial body group (`ObjectInfoGroups`): Near-Earth Objects, Inner Belt, Middle Belt, Outer Belt, Jupiter Trojans, Kuiper Belt, etc. — the same classification the game's search window uses, listed sunward-out. Clicking a preset adds every group member known to the ephemeris.
 - **Clear** button in the panel header removes all destinations at once.
 - **Moon search**: searching a moon's name ("Ganymede") now matches, shown as "Ganymede → Jupiter" and adding the parent planet — the ephemeris is heliocentric, so moons resolve to their parents for transfer purposes.
-- **Icons**: search results and preset entries show the body/group icon before the name.
+- **Icons**: search results and preset entries show the body/group icon before the name; the Craft dropdown shows each craft's sprite, with ALL-CAPS names displayed Title Cased ("Prometheus").
 - **Planets preset** (Mercury–Neptune, incl. Mars) directly after My Bases.
 - **Solar Orbit** is now a selectable origin in the From dropdown. The game models it as a virtual location (no orbit of its own, pinned to the Sun at a conventional 0.01 AU — `ObjectInfo.distanceSolarOrbitAU`), so the mod synthesizes a circular 0.01 AU heliocentric orbit in Earth's orbital plane for transfer computation. Real `EObjectTypes.SolarOrbit` bodies, if present in the scene, are accepted as origins too.
 - **Sortable columns**: Δv, Arrives, and Fuel sub-headers are now clickable sort toggles, like Departs (Fuel sorts by Δv, to which it is monotonic).

@@ -310,7 +310,7 @@ namespace SolarExpanseLaunchWindows
                 UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
 
             var crafts = GetAllCraftDv();
-            foreach (var (name, maxDvKmS, maxCargo, exhaustV, dryMass, fuel, solarRangeAU) in crafts.OrderByDescending(c => c.maxDvKmS == double.MaxValue ? double.MaxValue : c.maxDvKmS))
+            foreach (var (name, maxDvKmS, maxCargo, exhaustV, dryMass, fuel, solarRangeAU, icon) in crafts.OrderByDescending(c => c.maxDvKmS == double.MaxValue ? double.MaxValue : c.maxDvKmS))
             {
                 var capName    = name;
                 var capMaxDv   = maxDvKmS;
@@ -321,8 +321,8 @@ namespace SolarExpanseLaunchWindows
                 var capSolar   = solarRangeAU;
                 bool isSel     = capName == _selectedCraftName;
                 string label   = capSolar > 0
-                    ? $"{capName}  (solar, {capSolar:F1}AU)"
-                    : $"{capName}  ({capMaxDv:F0} km/s)";
+                    ? $"{PrettyCraftName(capName)}  (solar, {capSolar:F1}AU)"
+                    : $"{PrettyCraftName(capName)}  ({capMaxDv:F0} km/s)";
                 AddDropdownItem(content, label, isSel, () => {
                     _craftManuallySelected = true;
                     _sidecarDirty = true;
@@ -334,7 +334,7 @@ namespace SolarExpanseLaunchWindows
                     _needsOpt2ByOrigin.Clear();
                     _needsFstByOrigin.Clear();
                     needsRefresh = true;
-                });
+                }, icon);
             }
 
             if (crafts.Length == 0)
@@ -1007,6 +1007,14 @@ namespace SolarExpanseLaunchWindows
         private LaunchWindow? RetKey(string id)
             => retCache.TryGetValue(id, out var r) ? r.ret1 : null;
 
+        // Craft names ship ALL CAPS ("PROMETHEUS") — display them Title Cased.
+        // Mixed-case names are left untouched.
+        private static string PrettyCraftName(string name)
+        {
+            if (string.IsNullOrEmpty(name) || name != name.ToUpperInvariant()) return name;
+            return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name.ToLowerInvariant());
+        }
+
         private Sprite GetBodyIcon(string bodyId)
         {
             try
@@ -1075,7 +1083,7 @@ namespace SolarExpanseLaunchWindows
                 : (dvToKmS > 0 ? maxDvKmS / dvToKmS : double.MaxValue);
             if (CraftBtn == null) return;
             var lbl = CraftBtn.GetComponentInChildren<TextMeshProUGUI>();
-            if (lbl != null) lbl.text = $"Craft: {name} ▼";
+            if (lbl != null) lbl.text = $"Craft: {PrettyCraftName(name)} ▼";
         }
 
         // Returns (allObjectInfos enumerable, player Company object), or (null,null) on failure.
@@ -1105,7 +1113,7 @@ namespace SolarExpanseLaunchWindows
             catch (Exception ex) { Plugin.Log.LogWarning($"[LW] GetOmAndPlayer: {ex.Message}"); return (null, null); }
         }
 
-        private (string name, double maxDvKmS, double maxCargo, double exhaustV, double dryMass, double fuel, double solarRangeAU)[] GetAllCraftDv()
+        private (string name, double maxDvKmS, double maxCargo, double exhaustV, double dryMass, double fuel, double solarRangeAU, Sprite icon)[] GetAllCraftDv()
         {
             try
             {
@@ -1113,24 +1121,24 @@ namespace SolarExpanseLaunchWindows
 
                 var omResult = GetOmAndPlayer();
                 var player = omResult.player;
-                if (player == null) return Array.Empty<(string, double, double, double, double, double, double)>();
+                if (player == null) return Array.Empty<(string, double, double, double, double, double, double, Sprite)>();
 
                 var asm = AppDomain.CurrentDomain.GetAssemblies()
                     .FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
-                if (asm == null) return Array.Empty<(string, double, double, double, double, double, double)>();
+                if (asm == null) return Array.Empty<(string, double, double, double, double, double, double, Sprite)>();
 
                 // ShipManager.ListAllSpaceShip covers all owned spacecraft regardless of location.
                 var smType = asm.GetType("ShipManager");
-                if (smType == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager not found"); return Array.Empty<(string, double, double, double, double, double, double)>(); }
+                if (smType == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager not found"); return Array.Empty<(string, double, double, double, double, double, double, Sprite)>(); }
                 var sm = UnityEngine.Object.FindObjectOfType(smType);
-                if (sm == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager instance not found"); return Array.Empty<(string, double, double, double, double, double, double)>(); }
+                if (sm == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager instance not found"); return Array.Empty<(string, double, double, double, double, double, double, Sprite)>(); }
 
                 var listAll = smType.GetProperty("ListAllSpaceShip", bf)?.GetValue(sm) as IEnumerable;
-                if (listAll == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ListAllSpaceShip not found"); return Array.Empty<(string, double, double, double, double, double, double)>(); }
+                if (listAll == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ListAllSpaceShip not found"); return Array.Empty<(string, double, double, double, double, double, double, Sprite)>(); }
 
                 var seen     = new HashSet<int>();
                 var typeObjs = new List<object>();
-                var result   = new List<(string, double, double, double, double, double, double)>();
+                var result   = new List<(string, double, double, double, double, double, double, Sprite)>();
                 System.Reflection.FieldInfo fieldSCT = null;
 
                 foreach (var sc in listAll)
@@ -1217,12 +1225,16 @@ namespace SolarExpanseLaunchWindows
                     try   { scName = scTypeType.GetProperty("Name", bf)?.GetValue(scType) as string ?? "?"; }
                     catch { scName = scTypeType.GetProperty("ID",   bf)?.GetValue(scType) as string ?? "?"; }
 
+                    Sprite scIcon = null;
+                    try { scIcon = scTypeType.GetProperty("RocketBackGround", bf)?.GetValue(scType) as Sprite; }
+                    catch { }
+
                     if (!_craftLogged)
                     {
                         if (isSolar) Plugin.Log.LogInfo($"[LW] craft '{scName}': solar sail, range={solarRangeAU:F2}AU maxCargo={maxCargo:F1}");
                         else         Plugin.Log.LogInfo($"[LW] craft '{scName}': exhaustV={exhaustV:F3} mass={emptyMass:F1} fuel={fuel:F1} maxCargo={maxCargo:F1} maxDv={maxDvKmS:F1}km/s");
                     }
-                    result.Add((scName, maxDvKmS, maxCargo, exhaustV, emptyMass, fuel, solarRangeAU));
+                    result.Add((scName, maxDvKmS, maxCargo, exhaustV, emptyMass, fuel, solarRangeAU, scIcon));
                 }
 
                 if (result.Count == 0)
@@ -1234,7 +1246,7 @@ namespace SolarExpanseLaunchWindows
             catch (Exception ex)
             {
                 Plugin.Log.LogWarning($"[LW] GetAllCraftDv: {ex.Message}");
-                return Array.Empty<(string, double, double, double, double, double, double)>();
+                return Array.Empty<(string, double, double, double, double, double, double, Sprite)>();
             }
         }
 
