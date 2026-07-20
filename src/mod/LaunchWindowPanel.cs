@@ -416,7 +416,6 @@ namespace SolarExpanseLaunchWindows
             {
                 if (!ephem.IsPlanet(id)) continue;
                 if (id == OriginId || DestIds.Contains(id) || IsBodyDestroyedId(id)) continue;
-                if (!ShowUndiscovered && IsUndiscoveredId(id)) continue;
                 DestIds.Add(id);
                 _sidecarDirty = true;
                 added++;
@@ -667,15 +666,11 @@ namespace SolarExpanseLaunchWindows
             }
 
             int added = 0;
+            // Undiscovered members are added too (rows stay hidden while the
+            // Show undiscovered option is off, and appear when it's toggled on).
             foreach (var oi in group.objectInGroup)
             {
                 if (oi == null || oi.IsInGameDestroy) continue;
-                if (!ShowUndiscovered)
-                {
-                    bool disc = true;
-                    try { disc = oi.IsDiscoveredForPlayerCache; } catch { }
-                    if (!disc) continue;
-                }
                 NBody nb = null;
                 try { nb = oi.NBody; } catch { }
                 if (nb == null) continue;
@@ -1518,9 +1513,13 @@ namespace SolarExpanseLaunchWindows
             bool showRetSnap  = ShowReturn;
             var retSnapDict   = new Dictionary<string, (LaunchWindow? ret1, LaunchWindow? ret2)>(retCache);
             var toCalcRet     = new List<(string dId, LaunchWindow opt1, LaunchWindow? opt2)>();
+            bool showUndiscSnap = ShowUndiscovered;
             foreach (var dId in destSnap)
             {
                 if (dId == originId) continue;
+                // Hidden undiscovered rows don't compute; toggling Show undiscovered on
+                // sets needsRefresh, which backfills them here.
+                if (!showUndiscSnap && IsUndiscoveredId(dId)) continue;
                 if (!HasValidCache(dId, physNow))
                 {
                     // Known no-window result: the transfer geometry barely changes faster
