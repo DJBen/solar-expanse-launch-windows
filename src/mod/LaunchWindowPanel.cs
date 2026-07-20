@@ -88,6 +88,9 @@ namespace SolarExpanseLaunchWindows
         private double _craftExhaustV  = 0.0;
         private double _craftDryMass   = 0.0;
         private double _craftFuel      = 0.0;
+        private double _craftThrustN   = 0.0;
+        private bool   _craftConstAccel;
+        private double _thrustMultiplier = 1.0; // Economic.DeltaVMultiplayerCheckingThrust
 
         // Sort state
         private enum SortCol { None, OptDep, FstDep, OptDv, FstDv, OptArr, FstArr, OptFuel, FstFuel,
@@ -310,7 +313,7 @@ namespace SolarExpanseLaunchWindows
                 UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
 
             var crafts = GetAllCraftDv();
-            foreach (var (name, maxDvKmS, maxCargo, exhaustV, dryMass, fuel, solarRangeAU, icon) in crafts.OrderByDescending(c => c.maxDvKmS == double.MaxValue ? double.MaxValue : c.maxDvKmS))
+            foreach (var (name, maxDvKmS, maxCargo, exhaustV, dryMass, fuel, solarRangeAU, thrust, constAccel, icon) in crafts.OrderByDescending(c => c.maxDvKmS == double.MaxValue ? double.MaxValue : c.maxDvKmS))
             {
                 var capName    = name;
                 var capMaxDv   = maxDvKmS;
@@ -319,6 +322,8 @@ namespace SolarExpanseLaunchWindows
                 var capDry     = dryMass;
                 var capFuel    = fuel;
                 var capSolar   = solarRangeAU;
+                var capThrust  = thrust;
+                var capCA      = constAccel;
                 bool isSel     = capName == _selectedCraftName;
                 string label   = capSolar > 0
                     ? $"{PrettyCraftName(capName)}  (solar, {capSolar:F1}AU)"
@@ -326,7 +331,7 @@ namespace SolarExpanseLaunchWindows
                 AddDropdownItem(content, label, isSel, () => {
                     _craftManuallySelected = true;
                     _sidecarDirty = true;
-                    SetCraft(capName, capMaxDv, capCargo, capExhV, capDry, capFuel, capSolar);
+                    SetCraft(capName, capMaxDv, capCargo, capExhV, capDry, capFuel, capSolar, capThrust, capCA);
                     HideCraftDropdown();
                     ClearAllRowData();
                     _cacheByOrigin.Clear();
@@ -914,6 +919,19 @@ namespace SolarExpanseLaunchWindows
                 lastEphemBuildTime = Time.realtimeSinceStartup;
                 needsRefresh = true;
 
+                // Economic tuning constant used by the game's thrust feasibility check.
+                try
+                {
+                    const BindingFlags bfE = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                    var gm   = UnityEngine.Object.FindObjectOfType(typeof(GameManager));
+                    var econ = gm?.GetType().GetProperty("Economic", bfE)?.GetValue(gm)
+                            ?? gm?.GetType().GetField("economic", bfE)?.GetValue(gm);
+                    var mult = econ?.GetType().GetProperty("DeltaVMultiplayerCheckingThrust", bfE)?.GetValue(econ)
+                            ?? econ?.GetType().GetField("deltaVMultiplayerCheckingThrust", bfE)?.GetValue(econ);
+                    if (mult != null) _thrustMultiplier = Convert.ToDouble(mult);
+                }
+                catch { }
+
                 if (originIds.Count == 0)
                 {
                     originIds   = ephem.GetSortedOriginIds();
@@ -1064,11 +1082,13 @@ namespace SolarExpanseLaunchWindows
             var best = crafts[0];
             for (int i = 1; i < crafts.Length; i++)
                 if (crafts[i].maxDvKmS > best.maxDvKmS) best = crafts[i];
-            SetCraft(best.name, best.maxDvKmS, best.maxCargo, best.exhaustV, best.dryMass, best.fuel, best.solarRangeAU);
+            SetCraft(best.name, best.maxDvKmS, best.maxCargo, best.exhaustV, best.dryMass, best.fuel, best.solarRangeAU, best.thrust, best.constAccel);
         }
 
-        private void SetCraft(string name, double maxDvKmS, double maxCargo, double exhaustV, double dryMass, double fuel, double solarRangeAU = 0.0)
+        private void SetCraft(string name, double maxDvKmS, double maxCargo, double exhaustV, double dryMass, double fuel, double solarRangeAU = 0.0, double thrustN = 0.0, bool constAccel = false)
         {
+            _craftThrustN    = thrustN;
+            _craftConstAccel = constAccel;
             Plugin.Log.LogInfo($"[LW] SetCraft '{name}': exhaustV={exhaustV:F3} mass={dryMass:F1} fuel={fuel:F1} maxDv={maxDvKmS:F3}km/s solarRange={solarRangeAU:F2}AU");
             _selectedCraftName   = name;
             _craftMaxDvKmS       = maxDvKmS;
@@ -1113,7 +1133,7 @@ namespace SolarExpanseLaunchWindows
             catch (Exception ex) { Plugin.Log.LogWarning($"[LW] GetOmAndPlayer: {ex.Message}"); return (null, null); }
         }
 
-        private (string name, double maxDvKmS, double maxCargo, double exhaustV, double dryMass, double fuel, double solarRangeAU, Sprite icon)[] GetAllCraftDv()
+        private (string name, double maxDvKmS, double maxCargo, double exhaustV, double dryMass, double fuel, double solarRangeAU, double thrust, bool constAccel, Sprite icon)[] GetAllCraftDv()
         {
             try
             {
@@ -1121,24 +1141,24 @@ namespace SolarExpanseLaunchWindows
 
                 var omResult = GetOmAndPlayer();
                 var player = omResult.player;
-                if (player == null) return Array.Empty<(string, double, double, double, double, double, double, Sprite)>();
+                if (player == null) return Array.Empty<(string, double, double, double, double, double, double, double, bool, Sprite)>();
 
                 var asm = AppDomain.CurrentDomain.GetAssemblies()
                     .FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
-                if (asm == null) return Array.Empty<(string, double, double, double, double, double, double, Sprite)>();
+                if (asm == null) return Array.Empty<(string, double, double, double, double, double, double, double, bool, Sprite)>();
 
                 // ShipManager.ListAllSpaceShip covers all owned spacecraft regardless of location.
                 var smType = asm.GetType("ShipManager");
-                if (smType == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager not found"); return Array.Empty<(string, double, double, double, double, double, double, Sprite)>(); }
+                if (smType == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager not found"); return Array.Empty<(string, double, double, double, double, double, double, double, bool, Sprite)>(); }
                 var sm = UnityEngine.Object.FindObjectOfType(smType);
-                if (sm == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager instance not found"); return Array.Empty<(string, double, double, double, double, double, double, Sprite)>(); }
+                if (sm == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ShipManager instance not found"); return Array.Empty<(string, double, double, double, double, double, double, double, bool, Sprite)>(); }
 
                 var listAll = smType.GetProperty("ListAllSpaceShip", bf)?.GetValue(sm) as IEnumerable;
-                if (listAll == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ListAllSpaceShip not found"); return Array.Empty<(string, double, double, double, double, double, double, Sprite)>(); }
+                if (listAll == null) { Plugin.Log.LogWarning("[LW] GetAllCraftDv: ListAllSpaceShip not found"); return Array.Empty<(string, double, double, double, double, double, double, double, bool, Sprite)>(); }
 
                 var seen     = new HashSet<int>();
                 var typeObjs = new List<object>();
-                var result   = new List<(string, double, double, double, double, double, double, Sprite)>();
+                var result   = new List<(string, double, double, double, double, double, double, double, bool, Sprite)>();
                 System.Reflection.FieldInfo fieldSCT = null;
 
                 foreach (var sc in listAll)
@@ -1238,12 +1258,29 @@ namespace SolarExpanseLaunchWindows
                     try { scIcon = scTypeType.GetProperty("RocketBackGround", bf)?.GetValue(scType) as Sprite; }
                     catch { }
 
+                    // Thrust (research-adjusted) + constant-acceleration flag for the
+                    // finite-burn feasibility check (game: CheckCanLaunchThrust).
+                    double thrustN = 0; bool constAccel = false;
+                    try
+                    {
+                        var mThrust = scTypeType.GetMethods(bf).FirstOrDefault(m => m.Name == "GetThrust" && m.GetParameters().Length == 1);
+                        if (mThrust != null) thrustN = Convert.ToDouble(mThrust.Invoke(scType, new[] { player }));
+                    }
+                    catch { }
+                    try
+                    {
+                        var vCA = scTypeType.GetProperty("ConstanceAcceleration", bf)?.GetValue(scType)
+                               ?? scTypeType.GetField("constanceAcceleration", bf)?.GetValue(scType);
+                        if (vCA != null) constAccel = Convert.ToBoolean(vCA);
+                    }
+                    catch { }
+
                     if (!_craftLogged)
                     {
                         if (isSolar) Plugin.Log.LogInfo($"[LW] craft '{scName}': solar sail, range={solarRangeAU:F2}AU maxCargo={maxCargo:F1}");
                         else         Plugin.Log.LogInfo($"[LW] craft '{scName}': exhaustV={exhaustV:F3} mass={emptyMass:F1} fuel={fuel:F1} maxCargo={maxCargo:F1} maxDv={maxDvKmS:F1}km/s");
                     }
-                    result.Add((scName, maxDvKmS, maxCargo, exhaustV, emptyMass, fuel, solarRangeAU, scIcon));
+                    result.Add((scName, maxDvKmS, maxCargo, exhaustV, emptyMass, fuel, solarRangeAU, thrustN, constAccel, scIcon));
                     }
                     catch (Exception ex)
                     {
@@ -1261,7 +1298,7 @@ namespace SolarExpanseLaunchWindows
             catch (Exception ex)
             {
                 Plugin.Log.LogWarning($"[LW] GetAllCraftDv: {ex.Message}");
-                return Array.Empty<(string, double, double, double, double, double, double, Sprite)>();
+                return Array.Empty<(string, double, double, double, double, double, double, double, bool, Sprite)>();
             }
         }
 
@@ -2188,26 +2225,44 @@ namespace SolarExpanseLaunchWindows
             arr.text  = FormatEpoch(w.Value.ArrivalEpoch);
             fuel.text = FormatFuel(w.Value.DeltaVKmS);
             bool unreachable = w.Value.DeltaVKmS > _craftMaxDvKmS;
-            Color c = unreachable ? RedMuted : WhiteColor;
+            Color c = unreachable ? RedMuted : (ThrustShort(w.Value) ? AmberColor : WhiteColor);
             dep.color = dv.color = arr.color = fuel.color = c;
         }
 
-        private static readonly Color DimColor = new Color(0.50f, 0.50f, 0.50f);
+        private static readonly Color DimColor   = new Color(0.50f, 0.50f, 0.50f);
+        private static readonly Color AmberColor = new Color(0.87f, 0.62f, 0.24f);
+        private static readonly Color AmberDim   = new Color(0.58f, 0.44f, 0.20f);
+
+        // Finite-burn feasibility (game: "Not enough thrust for this maneuver").
+        // Empty-cargo mass with full tanks; solar sails and constant-acceleration
+        // drives use different flight models and are exempt, matching the game.
+        private bool ThrustShort(LaunchWindow w)
+        {
+            if (_craftThrustN <= 0 || _craftConstAccel || _craftSolarRangeAU > 0) return false;
+            double massTons = _craftDryMass + _craftFuel;
+            double spp = 1.0;
+            try { spp = GravityScaler.GetGameSecondPerPhysicsSecond(); } catch { }
+            if (spp <= 0) spp = 1.0;
+            double travelGameSec = w.TravelTimeSeconds * spp;
+            return !ThrustCheck.HasEnoughThrust(w.DeltaVKmS, _craftThrustN, massTons, travelGameSec, _thrustMultiplier);
+        }
 
         private void SetNextCells(LaunchWindow? w,
             TextMeshProUGUI dep, TextMeshProUGUI dv, TextMeshProUGUI arr,
             TextMeshProUGUI fuel, GravityEngine ge)
         {
-            dep.color = dv.color = arr.color = fuel.color = DimColor;
             if (w == null || ge == null)
             {
                 dep.text = dv.text = arr.text = fuel.text = "—";
+                dep.color = dv.color = arr.color = fuel.color = DimColor;
                 return;
             }
             dep.text  = FormatEpoch(w.Value.DepartureEpoch);
             dv.text   = $"{w.Value.DeltaVKmS:F1}km/s";
             arr.text  = FormatEpoch(w.Value.ArrivalEpoch);
             fuel.text = FormatFuel(w.Value.DeltaVKmS);
+            Color c = ThrustShort(w.Value) ? AmberDim : DimColor;
+            dep.color = dv.color = arr.color = fuel.color = c;
         }
 
         // Propellant for a transfer via the rocket equation: fuel = mass × (e^(Δv/ve) − 1),
@@ -2720,7 +2775,7 @@ namespace SolarExpanseLaunchWindows
                     if (c.name == _sidecarData.selectedCraftName)
                     {
                         _craftManuallySelected = true;
-                        SetCraft(c.name, c.maxDvKmS, c.maxCargo, c.exhaustV, c.dryMass, c.fuel, c.solarRangeAU);
+                        SetCraft(c.name, c.maxDvKmS, c.maxCargo, c.exhaustV, c.dryMass, c.fuel, c.solarRangeAU, c.thrust, c.constAccel);
                         break;
                     }
                 }

@@ -539,7 +539,7 @@ namespace SolarExpanseLaunchWindows.UI
             var depLblRT = depLbl.GetComponent<RectTransform>();
             depLblRT.anchorMin = Vector2.zero; depLblRT.anchorMax = Vector2.one; depLblRT.sizeDelta = Vector2.zero;
             var depTMP = AddTMP(depLbl, font, "Departs", 15f, TextAlignmentOptions.Left, muted: true);
-            AddTooltip(depGO, "Departure date. Click column header to sort.");
+            AddTooltip(depGO, "Departure date. Click column header to sort. Amber row: not enough thrust for this maneuver — the burn time exceeds the travel time (the game will refuse the mission).");
 
             var (arrBtn, arrTMP) = MakeSortLabel(go.transform, font, "Arrives", 100f,
                 "Estimated arrival date at the destination. Click to sort.");
