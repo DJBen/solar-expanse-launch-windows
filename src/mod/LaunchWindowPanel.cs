@@ -767,10 +767,14 @@ namespace SolarExpanseLaunchWindows
             for (int i = content.childCount - 1; i >= 0; i--)
                 UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
 
+            // Filter out already-added/origin/destroyed BEFORE capping at 10 — otherwise a
+            // query whose first alphabetical matches are all in the list shows nothing.
+            // Prefix matches rank first so "7" surfaces "7 Iris" ahead of "17 Thetis".
             var matches = ephem.AllBodyIds
                 .Where(id => ephem.GetDisplayName(id).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
-                .Where(id => !IsBodyDestroyedId(id))
-                .OrderBy(id => ephem.GetDisplayName(id))
+                .Where(id => !IsBodyDestroyedId(id) && !DestIds.Contains(id) && id != OriginId)
+                .OrderBy(id => ephem.GetDisplayName(id).StartsWith(query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(id => ephem.GetDisplayName(id))
                 .Take(10)
                 .ToList();
 
@@ -796,7 +800,6 @@ namespace SolarExpanseLaunchWindows
             int added = 0;
             foreach (var id in matches)
             {
-                if (DestIds.Contains(id) || id == OriginId) continue;
                 added++;
                 AddSearchItem(id, ephem.GetDisplayName(id));
             }
@@ -807,13 +810,12 @@ namespace SolarExpanseLaunchWindows
             {
                 foreach (var kv in ephem.MoonAliases
                              .Where(kv => kv.Key.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                             .Where(kv => !DestIds.Contains(kv.Value) && kv.Value != OriginId && !IsBodyDestroyedId(kv.Value))
                              .OrderBy(kv => kv.Key)
                              .Take(10 - added))
                 {
-                    string parentId = kv.Value;
-                    if (DestIds.Contains(parentId) || parentId == OriginId || IsBodyDestroyedId(parentId)) continue;
                     added++;
-                    AddSearchItem(parentId, $"{kv.Key} → {ephem.GetDisplayName(parentId)}");
+                    AddSearchItem(kv.Value, $"{kv.Key} → {ephem.GetDisplayName(kv.Value)}");
                 }
             }
 
