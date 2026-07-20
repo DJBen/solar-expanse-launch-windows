@@ -15,6 +15,7 @@ namespace SolarExpanseLaunchWindows
         internal static ConfigEntry<bool> CfgShowNextWindow;
         internal static ConfigEntry<bool> CfgShowFastest;
         internal static ConfigEntry<bool> CfgShowReturn;
+        internal static ConfigEntry<bool> CfgShowUndiscovered;
         internal static ConfigEntry<int>  CfgAlertDaysBefore;
 
         void Awake()
@@ -29,6 +30,8 @@ namespace SolarExpanseLaunchWindows
                 "Show the Fastest (Δv-capped) transfer window section.");
             CfgShowReturn = Config.Bind("UI", "ShowReturn", true,
                 "Show (and compute on demand) the Return section: the first optimal window from the destination back to the origin after arrival.");
+            CfgShowUndiscovered = Config.Bind("UI", "ShowUndiscovered", false,
+                "Show bodies the player has not discovered yet (greyed out) in the table, search, and presets.");
             CfgAlertDaysBefore = Config.Bind("Alerts", "AlertDaysBefore", 0,
                 "Fire armed launch-window alerts this many days before departure.");
             Log.LogInfo("Solar Expanse Launch Windows loaded");

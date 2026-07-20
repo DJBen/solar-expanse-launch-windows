@@ -121,6 +121,7 @@ namespace SolarExpanseLaunchWindows
         private bool ShowNext    => Plugin.CfgShowNextWindow == null || Plugin.CfgShowNextWindow.Value;
         private bool ShowFastest => Plugin.CfgShowFastest != null && Plugin.CfgShowFastest.Value;
         private bool ShowReturn  => Plugin.CfgShowReturn == null || Plugin.CfgShowReturn.Value;
+        private bool ShowUndiscovered => Plugin.CfgShowUndiscovered != null && Plugin.CfgShowUndiscovered.Value;
         private int  AlertDaysBefore => Plugin.CfgAlertDaysBefore != null
             ? Mathf.Clamp(Plugin.CfgAlertDaysBefore.Value, 0, 365) : 0;
         private HashSet<string> _originShipBodies;
@@ -415,6 +416,7 @@ namespace SolarExpanseLaunchWindows
             {
                 if (!ephem.IsPlanet(id)) continue;
                 if (id == OriginId || DestIds.Contains(id) || IsBodyDestroyedId(id)) continue;
+                if (!ShowUndiscovered && IsUndiscoveredId(id)) continue;
                 DestIds.Add(id);
                 _sidecarDirty = true;
                 added++;
@@ -496,6 +498,11 @@ namespace SolarExpanseLaunchWindows
                 // always cached — this is purely a visibility toggle.
                 ApplySubHdrLayout();
                 RebuildAllRowsForLayout();
+                PopulateOptionsDropdown();
+            });
+            AddDropdownItem(content, (ShowUndiscovered ? "■ " : "□ ") + "Show undiscovered", false, () => {
+                if (Plugin.CfgShowUndiscovered != null) Plugin.CfgShowUndiscovered.Value = !ShowUndiscovered;
+                needsRefresh = true; // row visibility is applied in RebuildRows
                 PopulateOptionsDropdown();
             });
             AddDropdownItem(content, (ShowReturn ? "■ " : "□ ") + "Show Return trip", false, () => {
@@ -663,6 +670,12 @@ namespace SolarExpanseLaunchWindows
             foreach (var oi in group.objectInGroup)
             {
                 if (oi == null || oi.IsInGameDestroy) continue;
+                if (!ShowUndiscovered)
+                {
+                    bool disc = true;
+                    try { disc = oi.IsDiscoveredForPlayerCache; } catch { }
+                    if (!disc) continue;
+                }
                 NBody nb = null;
                 try { nb = oi.NBody; } catch { }
                 if (nb == null) continue;
@@ -773,6 +786,7 @@ namespace SolarExpanseLaunchWindows
             var matches = ephem.AllBodyIds
                 .Where(id => ephem.GetDisplayName(id).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
                 .Where(id => !IsBodyDestroyedId(id) && !DestIds.Contains(id) && id != OriginId)
+                .Where(id => ShowUndiscovered || !IsUndiscoveredId(id))
                 .OrderBy(id => ephem.GetDisplayName(id).StartsWith(query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                 .ThenBy(id => ephem.GetDisplayName(id))
                 .Take(10)
@@ -1033,6 +1047,16 @@ namespace SolarExpanseLaunchWindows
         {
             if (string.IsNullOrEmpty(name) || name != name.ToUpperInvariant()) return name;
             return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name.ToLowerInvariant());
+        }
+
+        private bool IsUndiscoveredId(string bodyId)
+        {
+            try
+            {
+                var oi = ephem?.GetNBodyForId(bodyId)?.GetObjectInfo();
+                return oi != null && !oi.IsDiscoveredForPlayerCache;
+            }
+            catch { return false; }
         }
 
         private Sprite GetBodyIcon(string bodyId)
@@ -1779,15 +1803,15 @@ namespace SolarExpanseLaunchWindows
                     double dist = ephem.GetState(dId, physNow).Position.Magnitude;
                     outOfRange = dist > _craftSolarRangeAU;
                 }
-                // Grey out bodies the player hasn't discovered yet (the game's own
-                // lists hide them; the mod shows them dimmed instead).
-                bool undiscovered = false;
-                try
+                // Undiscovered bodies: hidden entirely unless the Show undiscovered
+                // option is on, in which case they render with a greyed-out name.
+                bool undiscovered = IsUndiscoveredId(dId);
+                var rowGO = ContentParent.Find("Row_" + dId)?.gameObject;
+                if (rowGO != null)
                 {
-                    var oiD = ephem?.GetNBodyForId(dId)?.GetObjectInfo();
-                    undiscovered = oiD != null && !oiD.IsDiscoveredForPlayerCache;
+                    bool visible = ShowUndiscovered || !undiscovered;
+                    if (rowGO.activeSelf != visible) rowGO.SetActive(visible);
                 }
-                catch { }
                 if (rowNameTMPs.TryGetValue(dId, out var nameTMP))
                     nameTMP.color = (outOfRange || undiscovered) ? new Color(0.45f, 0.45f, 0.45f) : Color.white;
 

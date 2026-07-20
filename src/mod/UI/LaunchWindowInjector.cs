@@ -277,8 +277,8 @@ namespace SolarExpanseLaunchWindows.UI
                 var presetsDropGO = MakeDropdownPanel("LWPresetsDropdown", canvas.transform, font, 275f, 296f);
                 presetsDropGO.SetActive(false);
 
-                // ── Options dropdown overlay (4 checkbox items + alert-days row) ──────────────
-                var optionsDropGO = MakeDropdownPanel("LWOptionsDropdown", canvas.transform, font, 340f, 182f);
+                // ── Options dropdown overlay (5 checkbox items + alert-days row) ──────────────
+                var optionsDropGO = MakeDropdownPanel("LWOptionsDropdown", canvas.transform, font, 340f, 214f);
                 optionsDropGO.SetActive(false);
 
                 // ── Attach panel MonoBehaviour ────────────────────────────────────────────────
