@@ -6,7 +6,7 @@ namespace SolarExpanseLaunchWindows
     [Serializable]
     internal class LWSaveData
     {
-        public int          version          = 3;
+        public int          version          = 4; // v4: body references are display names, not instance ids
         public string       originId         = "";
         public string       selectedCraftName = "";
         public List<string> destIds     = new List<string>(); // v1 compat

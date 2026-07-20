@@ -2788,9 +2788,26 @@ namespace SolarExpanseLaunchWindows
                 needsRefresh = true;
                 return;
             }
-            if (!string.IsNullOrEmpty(_sidecarData.originId))
+            // Sidecars persist display names (v4+); older files hold raw instance ids,
+            // which only resolve within the session that wrote them. Accept both.
+            var allIdsR = new HashSet<string>(ephem.AllBodyIds);
+            var nameToId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var bid in ephem.AllBodyIds)
             {
-                int idx = originIds.IndexOf(_sidecarData.originId);
+                var bn = ephem.GetDisplayName(bid);
+                if (!string.IsNullOrEmpty(bn) && !nameToId.ContainsKey(bn)) nameToId[bn] = bid;
+            }
+            string R(string s)
+            {
+                if (string.IsNullOrEmpty(s)) return null;
+                if (nameToId.TryGetValue(s, out var rid)) return rid;
+                return allIdsR.Contains(s) ? s : null;
+            }
+
+            var originResolved = R(_sidecarData.originId);
+            if (originResolved != null)
+            {
+                int idx = originIds.IndexOf(originResolved);
                 if (idx >= 0) { originIndex = idx; UpdateOriginLabel(); }
             }
             if (!string.IsNullOrEmpty(_sidecarData.selectedCraftName) && !_craftManuallySelected)
@@ -2806,32 +2823,52 @@ namespace SolarExpanseLaunchWindows
                     }
                 }
             }
-            var allIds = new HashSet<string>(ephem.AllBodyIds);
+            var allIds = allIdsR;
             _destsByOrigin.Clear();
             if (_sidecarData.originDests?.Count > 0)
             {
                 foreach (var od in _sidecarData.originDests)
-                    if (!string.IsNullOrEmpty(od.originId))
-                        _destsByOrigin[od.originId] = (od.destIds ?? new List<string>())
-                            .Where(id => allIds.Contains(id)).ToList();
+                {
+                    var ro = R(od.originId);
+                    if (ro != null)
+                        _destsByOrigin[ro] = (od.destIds ?? new List<string>())
+                            .Select(R).Where(id => id != null).ToList();
+                }
             }
             else if (_sidecarData.destIds?.Count > 0)
             {
                 // v1 compat: treat saved DestIds as belonging to the saved origin
-                var v1Origin = _sidecarData.originId;
-                if (!string.IsNullOrEmpty(v1Origin))
-                    _destsByOrigin[v1Origin] = _sidecarData.destIds
-                        .Where(id => allIds.Contains(id)).ToList();
+                if (originResolved != null)
+                    _destsByOrigin[originResolved] = _sidecarData.destIds
+                        .Select(R).Where(id => id != null).ToList();
             }
             _firedAlarms.Clear();
             _alarms.Clear();
             foreach (var a in _sidecarData.alarms ?? new List<LWAlarmSave>())
-                _alarms.Add(new AlarmKey { OriginId = a.originId, DestId = a.destId, Year = a.year, Month = a.month, Day = a.day, IsFastest = a.isFastest, IsReturn = a.isReturn });
+            {
+                var ao = R(a.originId); var ad = R(a.destId);
+                if (ao == null || ad == null) continue;
+                _alarms.Add(new AlarmKey { OriginId = ao, DestId = ad, Year = a.year, Month = a.month, Day = a.day, IsFastest = a.isFastest, IsReturn = a.isReturn });
+            }
+
+            // Resolve cache destIds (names → live ids) before promotion.
+            List<LWDestCacheSave> ResolveCacheList(List<LWDestCacheSave> src)
+            {
+                var outList = new List<LWDestCacheSave>();
+                foreach (var cs in src ?? new List<LWDestCacheSave>())
+                {
+                    var rid = R(cs.destId);
+                    if (rid == null) continue;
+                    cs.destId = rid;
+                    outList.Add(cs);
+                }
+                return outList;
+            }
 
             var ge2 = GravityEngine.Instance();
             double physNow2 = ge2 != null ? ge2.GetPhysicalTimeDouble() : 0;
             var (promoted, needsOpt2, needsFst) = LWCacheHelper.PromoteWindowCache(
-                _sidecarData.windowCache, allIds, physNow2);
+                ResolveCacheList(_sidecarData.windowCache), allIds, physNow2);
             cache.Clear();
             _needsOpt2Recalc.Clear();
             _needsFstRecalc.Clear();
@@ -2844,13 +2881,14 @@ namespace SolarExpanseLaunchWindows
             _needsFstByOrigin.Clear();
             foreach (var oc in _sidecarData.originCaches ?? new List<LWOriginCacheSave>())
             {
-                if (string.IsNullOrEmpty(oc.originId)) continue;
-                var (prom, o2set, fsset) = LWCacheHelper.PromoteWindowCache(oc.cache, allIds, physNow2);
+                var ro = R(oc.originId);
+                if (ro == null) continue;
+                var (prom, o2set, fsset) = LWCacheHelper.PromoteWindowCache(ResolveCacheList(oc.cache), allIds, physNow2);
                 if (prom.Count > 0)
                 {
-                    _cacheByOrigin[oc.originId] = prom;
-                    if (o2set.Count > 0) _needsOpt2ByOrigin[oc.originId] = o2set;
-                    if (fsset.Count > 0) _needsFstByOrigin[oc.originId]  = fsset;
+                    _cacheByOrigin[ro] = prom;
+                    if (o2set.Count > 0) _needsOpt2ByOrigin[ro] = o2set;
+                    if (fsset.Count > 0) _needsFstByOrigin[ro]  = fsset;
                 }
             }
 
@@ -2894,19 +2932,25 @@ namespace SolarExpanseLaunchWindows
         {
             try
             {
+                // Persist DISPLAY NAMES, not NBody instance ids: Unity reassigns instance
+                // ids every session, so id-based sidecars only survived same-session
+                // reloads (observed: the same Earth saved as 224236 / 49598 / 233066 in
+                // three sessions). Names are scene-stable and mapped back on load.
+                string N(string id) => ephem != null ? ephem.GetDisplayName(id) : id;
+
                 var originDestsList = new List<LWOriginDestsSave>();
                 foreach (var kv in _destsByOrigin)
-                    originDestsList.Add(new LWOriginDestsSave { originId = kv.Key, destIds = new List<string>(kv.Value) });
+                    originDestsList.Add(new LWOriginDestsSave { originId = N(kv.Key), destIds = kv.Value.Select(N).ToList() });
 
                 var alarmsList = new List<LWAlarmSave>();
                 foreach (var a in _alarms)
-                    alarmsList.Add(new LWAlarmSave { originId = a.OriginId, destId = a.DestId, year = a.Year, month = a.Month, day = a.Day, isFastest = a.IsFastest, isReturn = a.IsReturn });
+                    alarmsList.Add(new LWAlarmSave { originId = N(a.OriginId), destId = N(a.DestId), year = a.Year, month = a.Month, day = a.Day, isFastest = a.IsFastest, isReturn = a.IsReturn });
 
                 var cacheList = new List<LWDestCacheSave>();
                 foreach (var kv in cache)
                     cacheList.Add(new LWDestCacheSave
                     {
-                        destId = kv.Key,
+                        destId = N(kv.Key),
                         opt1   = kv.Value.opt1.HasValue ? LWSaveConvert.ToSave(kv.Value.opt1.Value) : null,
                         fst1   = kv.Value.fst1.HasValue ? LWSaveConvert.ToSave(kv.Value.fst1.Value) : null,
                         opt2   = kv.Value.opt2.HasValue ? LWSaveConvert.ToSave(kv.Value.opt2.Value) : null,
@@ -2924,21 +2968,21 @@ namespace SolarExpanseLaunchWindows
                         var (o1, f1, o2, f2) = dc.Value;
                         ocList.Add(new LWDestCacheSave
                         {
-                            destId = dc.Key,
+                            destId = N(dc.Key),
                             opt1   = o1.HasValue ? LWSaveConvert.ToSave(o1.Value) : null,
                             fst1   = f1.HasValue ? LWSaveConvert.ToSave(f1.Value) : null,
                             opt2   = o2.HasValue ? LWSaveConvert.ToSave(o2.Value) : null,
                             fst2   = f2.HasValue ? LWSaveConvert.ToSave(f2.Value) : null,
                         });
                     }
-                    originCachesList.Add(new LWOriginCacheSave { originId = oc.Key, cache = ocList });
+                    originCachesList.Add(new LWOriginCacheSave { originId = N(oc.Key), cache = ocList });
                 }
 
                 var data = new LWSaveData
                 {
-                    originId          = OriginId ?? "",
+                    originId          = OriginId != null ? N(OriginId) : "",
                     selectedCraftName = _selectedCraftName ?? "",
-                    destIds           = new List<string>(DestIds),
+                    destIds           = DestIds.Select(N).ToList(),
                     originDests       = originDestsList,
                     alarms            = alarmsList,
                     windowCache       = cacheList,
