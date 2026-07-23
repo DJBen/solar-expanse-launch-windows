@@ -104,6 +104,7 @@ namespace SolarExpanseLaunchWindows
         // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
         // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
         private readonly Dictionary<string, TextMeshProUGUI>   rowNameTMPs = new Dictionary<string, TextMeshProUGUI>();
+        private readonly Dictionary<string, TextMeshProUGUI>   rowPresenceTMPs = new Dictionary<string, TextMeshProUGUI>();
         private readonly Dictionary<string, Image>             rowIconImgs = new Dictionary<string, Image>();
         private readonly Dictionary<string, TextMeshProUGUI[]> rowTMPs
             = new Dictionary<string, TextMeshProUGUI[]>();
@@ -585,10 +586,10 @@ namespace SolarExpanseLaunchWindows
             if (FstHdrGOs != null) foreach (var go in FstHdrGOs) if (go != null) go.SetActive(ShowFastest);
             if (RetHdrGOs != null) foreach (var go in RetHdrGOs) if (go != null) go.SetActive(ShowReturn);
 
-            // Panel width tracks the visible sections (name 158 + × 21 + chrome 34).
+            // Panel width tracks the visible sections (name 172 + × 21 + chrome 34).
             if (PanelRT != null)
             {
-                float total = 158f + optW
+                float total = 172f + optW
                     + (ShowFastest ? 12f + fstW : 0f)
                     + (ShowReturn  ? 12f + fstW : 0f)
                     + 21f + 34f;
@@ -608,6 +609,7 @@ namespace SolarExpanseLaunchWindows
             rowNameTMPs.Clear();
             rowIconImgs.Clear();
             rowCheckboxBtns.Clear();
+            rowPresenceTMPs.Clear();
             needsRefresh = true;
         }
 
@@ -1784,16 +1786,25 @@ namespace SolarExpanseLaunchWindows
             {
                 rowTMPs.Remove(dId);
                 rowCheckboxBtns.Remove(dId);
+                rowPresenceTMPs.Remove(dId);
                 var t = ContentParent.Find("Row_" + dId);
                 if (t != null) Destroy(t.gameObject);
             }
 
             double physNow = ge != null ? ge.GetPhysicalTimeDouble() : 0;
+            var presence = DestIds.Count > 0 ? GetPresenceBodyEphemIds() : new HashSet<string>();
 
             foreach (var dId in DestIds)
             {
                 if (dId == OriginId || !rowTMPs.ContainsKey(dId)) continue;
                 var tmps = rowTMPs[dId];
+
+                if (rowPresenceTMPs.TryGetValue(dId, out var presTMP2))
+                {
+                    bool has = presence.Contains(dId);
+                    presTMP2.text  = has ? "●" : "○";
+                    presTMP2.color = has ? new Color(0.30f, 0.80f, 0.38f) : new Color(0.45f, 0.45f, 0.45f, 0.9f);
+                }
 
                 // Out-of-range indicator for solar sails.
                 bool outOfRange = false;
@@ -1895,11 +1906,11 @@ namespace SolarExpanseLaunchWindows
                 }
             }
 
-            // Name cell (158px): icon (18px) + name label/btn (flex)
+            // Name cell (172px): presence dot (14px) + icon (18px) + name label/btn (flex)
             var nameCell = new GameObject("NameCell", typeof(RectTransform));
             nameCell.transform.SetParent(inner.transform, false);
             var nameCellLE = nameCell.AddComponent<LayoutElement>();
-            nameCellLE.preferredWidth = 158f;
+            nameCellLE.preferredWidth = 172f;
             // Must pin flexibleWidth: LayoutElement leaves it unset (-1), which falls through
             // to the nested HLG's flexible=1 (from the flex name label). That made the name
             // cell absorb the row's slack and shift every column right vs the second row.
@@ -1908,6 +1919,27 @@ namespace SolarExpanseLaunchWindows
             nHlg.childControlHeight = true; nHlg.childControlWidth = true;
             nHlg.childForceExpandHeight = true; nHlg.childForceExpandWidth = false;
             nHlg.spacing = 1f;
+
+            // Presence indicator (14px): ● green when the player has facilities built
+            // on this body, ○ grey otherwise. Updated each refresh in RebuildRows.
+            var presGO = new GameObject("Pres", typeof(RectTransform));
+            presGO.transform.SetParent(nameCell.transform, false);
+            presGO.AddComponent<LayoutElement>().preferredWidth = 14f;
+            var presImg = presGO.AddComponent<Image>();
+            presImg.color = Color.clear; presImg.raycastTarget = true;
+            presGO.AddComponent<UI.LWTooltipTrigger>().Text =
+                "Presence: ● green = you have facilities built on this body (probes excluded); ○ grey = none.";
+            var presLblGO = new GameObject("L", typeof(RectTransform));
+            presLblGO.transform.SetParent(presGO.transform, false);
+            var presLblRT = presLblGO.GetComponent<RectTransform>();
+            presLblRT.anchorMin = Vector2.zero; presLblRT.anchorMax = Vector2.one; presLblRT.sizeDelta = Vector2.zero;
+            var presTMP = presLblGO.AddComponent<TextMeshProUGUI>();
+            if (FontAsset != null) presTMP.font = FontAsset;
+            presTMP.text = "○"; presTMP.fontSize = 13f;
+            presTMP.alignment = TextAlignmentOptions.Center;
+            presTMP.color = new Color(0.45f, 0.45f, 0.45f, 0.9f);
+            presTMP.enableWordWrapping = false; presTMP.raycastTarget = false;
+            rowPresenceTMPs[dId] = presTMP;
 
             // Icon slot (12px)
             var iconGO  = new GameObject("Icon", typeof(RectTransform));
@@ -2064,10 +2096,10 @@ namespace SolarExpanseLaunchWindows
             hlg2.childForceExpandHeight = true; hlg2.childForceExpandWidth = false;
             hlg2.spacing = 0f;
 
-            // Blank name placeholder (158px)
+            // Blank name placeholder (172px)
             var ns = new GameObject("NS", typeof(RectTransform));
             ns.transform.SetParent(inner2.transform, false);
-            ns.AddComponent<LayoutElement>().preferredWidth = 158f;
+            ns.AddComponent<LayoutElement>().preferredWidth = 172f;
 
             Color dimC = new Color(0.50f, 0.50f, 0.50f);
             // Row-2 opt group mirrors row1's oGroup exactly.
@@ -2196,6 +2228,7 @@ namespace SolarExpanseLaunchWindows
             rowNameTMPs.Remove(dId);
             rowIconImgs.Remove(dId);
             rowCheckboxBtns.Remove(dId);
+            rowPresenceTMPs.Remove(dId);
             _alarms.RemoveWhere(k => k.DestId == dId);
             var t = ContentParent?.Find("Row_" + dId);
             Plugin.Log.LogInfo($"[LW] RemoveDest: {name} rowFound={t != null}");

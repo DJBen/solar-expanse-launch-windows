@@ -119,7 +119,7 @@ namespace SolarExpanseLaunchWindows.UI
 
                 // Row 2: Column headers — use game locale keys so they match the player's language.
                 var colHdrGO = MakeHRow("ColHdr", panelGO.transform, 22f, 0f);
-                MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 15f, 158f, TextAlignmentOptions.Left, bold: true);
+                MakeColLabel("CH0",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.Destination",   "DESTINATION"), 15f, 172f, TextAlignmentOptions.Left, bold: true);
                 // 18px spacer + (groupW−18) labels keep OPTIMAL/FASTEST left-aligned under the NT-offset "Departs" sub-header.
                 MakeColLabel("CHNT1", colHdrGO.transform, font, "", 15f, 18f, TextAlignmentOptions.Left);
                 var ch1TMP   = MakeColLabel("CH1",   colHdrGO.transform, headerFont ?? font, Loc("Game.UI.Windows.Windows.PlanMissionWindow.ButtonOptimal", "OPTIMAL"), 15f, 425f, TextAlignmentOptions.Left, bold: true);
@@ -133,7 +133,7 @@ namespace SolarExpanseLaunchWindows.UI
                 // Row 4: Sub-header — cells must match LaunchWindowPanel OPT_*/FST_* constants.
                 // Optimal: dep=118 dv=95 arr=100 fuel=130 (443); Fastest: dep=120 dv=110 arr=100 fuel=130 (460)
                 var subHdrGO = MakeHRow("SubHdr", panelGO.transform, 21f, 0f);
-                MakeColLabel("SH0", subHdrGO.transform, font, "", 15f, 158f, TextAlignmentOptions.Left, muted: true);
+                MakeColLabel("SH0", subHdrGO.transform, font, "", 15f, 172f, TextAlignmentOptions.Left, muted: true);
                 var (optDepBtn, optDepTMP, optDvBtn, optDvTMP, optArrBtn, optArrTMP, optFuBtn, optFuTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: true);
                 var shSepTMP = MakeColLabel("SHSep", subHdrGO.transform, font, "", 15f, 12f, TextAlignmentOptions.Left);
                 var (fstDepBtn, fstDepTMP, fstDvBtn, fstDvTMP, fstArrBtn, fstArrTMP, fstFuBtn, fstFuTMP) = MakeSubHdrGroup(subHdrGO.transform, font, headerFont, isOptimal: false);
