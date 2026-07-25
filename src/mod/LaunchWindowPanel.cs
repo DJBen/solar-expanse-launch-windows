@@ -1474,6 +1474,10 @@ namespace SolarExpanseLaunchWindows
         //   ○ grey   — neither
         // The filled glyph (U+25CF) draws a visibly smaller disc than the hollow one
         // (U+25CB) at equal point size, so it's scaled up to match optically.
+        // Midline alignment centres on the glyph's ink bounds rather than the font's
+        // line metrics, which is what keeps the two glyphs on the same optical centre —
+        // with Center, the filled disc rides low because its ink sits differently on
+        // the baseline.
         private static readonly Color DotGreen  = new Color(0.30f, 0.80f, 0.38f);
         private static readonly Color DotYellow = new Color(0.92f, 0.78f, 0.22f);
         private static readonly Color DotGrey   = new Color(0.45f, 0.45f, 0.45f, 0.9f);
@@ -1482,9 +1486,10 @@ namespace SolarExpanseLaunchWindows
         {
             if (tmp == null) return;
             bool filled = hasPresence || hasMission;
-            tmp.text     = filled ? "●" : "○";
-            tmp.fontSize = filled ? 16f : 13f;
-            tmp.color    = hasPresence ? DotGreen : (hasMission ? DotYellow : DotGrey);
+            tmp.text      = filled ? "●" : "○";
+            tmp.fontSize  = filled ? 18f : 13f;
+            tmp.color     = hasPresence ? DotGreen : (hasMission ? DotYellow : DotGrey);
+            tmp.alignment = TextAlignmentOptions.Midline;
         }
 
         // Bodies that are the origin or destination of a pending player mission —
@@ -1998,7 +2003,6 @@ namespace SolarExpanseLaunchWindows
             presLblRT.anchorMin = Vector2.zero; presLblRT.anchorMax = Vector2.one; presLblRT.sizeDelta = Vector2.zero;
             var presTMP = presLblGO.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) presTMP.font = FontAsset;
-            presTMP.alignment = TextAlignmentOptions.Center;
             presTMP.enableWordWrapping = false; presTMP.raycastTarget = false;
             SetPresenceDot(presTMP, hasPresence: false, hasMission: false);
             rowPresenceTMPs[dId] = presTMP;
