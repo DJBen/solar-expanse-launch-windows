@@ -1468,6 +1468,71 @@ namespace SolarExpanseLaunchWindows
             }
         }
 
+        // Presence dot states, in precedence order:
+        //   ● green  — facilities built here
+        //   ● yellow — a pending mission departs from or arrives here
+        //   ○ grey   — neither
+        // The filled glyph (U+25CF) draws a visibly smaller disc than the hollow one
+        // (U+25CB) at equal point size, so it's scaled up to match optically.
+        private static readonly Color DotGreen  = new Color(0.30f, 0.80f, 0.38f);
+        private static readonly Color DotYellow = new Color(0.92f, 0.78f, 0.22f);
+        private static readonly Color DotGrey   = new Color(0.45f, 0.45f, 0.45f, 0.9f);
+
+        private static void SetPresenceDot(TextMeshProUGUI tmp, bool hasPresence, bool hasMission)
+        {
+            if (tmp == null) return;
+            bool filled = hasPresence || hasMission;
+            tmp.text     = filled ? "●" : "○";
+            tmp.fontSize = filled ? 16f : 13f;
+            tmp.color    = hasPresence ? DotGreen : (hasMission ? DotYellow : DotGrey);
+        }
+
+        // Bodies that are the origin or destination of a pending player mission —
+        // scheduled (not yet launched) or ongoing (in flight). Matches the game's
+        // MissionsWindow categories: not cancelled, not landed, arrival still ahead.
+        // Moons/orbit bodies roll up to their parent planet, as with presence.
+        private HashSet<string> GetMissionBodyEphemIds()
+        {
+            var result = new HashSet<string>();
+            try
+            {
+                if (ephem == null) return result;
+                var mim = MonoBehaviourSingleton<Manager.MissionInfoManager>.Instance;
+                var tc  = MonoBehaviourSingleton<TimeController>.Instance;
+                if (mim == null || tc == null) return result;
+                var player = MonoBehaviourSingleton<GameManager>.Instance?.Player;
+                DateTime now = tc.CurrentTime;
+
+                foreach (var mi in mim.ListMissionInfo)
+                {
+                    if (mi == null || mi.cancel || mi.wasLand) continue;
+                    if (player != null && (mi.company == null || !mi.company.Equals(player))) continue;
+                    if (now >= mi.DateArrive) continue; // already finished
+                    AddResolvedBody(result, mi.start);
+                    AddResolvedBody(result, mi.target);
+                }
+            }
+            catch (Exception ex) { Plugin.Log.LogWarning($"[LW] GetMissionBodyEphemIds: {ex.Message}"); }
+            return result;
+        }
+
+        // Map an ObjectInfo to an ephemeris body id, walking up to the parent planet
+        // when the body itself isn't heliocentric (moons, orbital stations).
+        private void AddResolvedBody(HashSet<string> into, Game.Info.ObjectInfo oi)
+        {
+            try
+            {
+                for (var cur = oi; cur != null; cur = cur.ParentObjectInfo)
+                {
+                    var nb = cur.NBody;
+                    if (nb == null) continue;
+                    string id = nb.GetInstanceID().ToString();
+                    if (ephem.AllBodyIds.Contains(id)) { into.Add(id); return; }
+                }
+            }
+            catch { }
+        }
+
         // ── Refresh + row building ────────────────────────────────────────────────
 
         private void ClearAllRowData()
@@ -1793,6 +1858,7 @@ namespace SolarExpanseLaunchWindows
 
             double physNow = ge != null ? ge.GetPhysicalTimeDouble() : 0;
             var presence = DestIds.Count > 0 ? GetPresenceBodyEphemIds() : new HashSet<string>();
+            var missionBodies = DestIds.Count > 0 ? GetMissionBodyEphemIds() : new HashSet<string>();
 
             foreach (var dId in DestIds)
             {
@@ -1800,11 +1866,7 @@ namespace SolarExpanseLaunchWindows
                 var tmps = rowTMPs[dId];
 
                 if (rowPresenceTMPs.TryGetValue(dId, out var presTMP2))
-                {
-                    bool has = presence.Contains(dId);
-                    presTMP2.text  = has ? "●" : "○";
-                    presTMP2.color = has ? new Color(0.30f, 0.80f, 0.38f) : new Color(0.45f, 0.45f, 0.45f, 0.9f);
-                }
+                    SetPresenceDot(presTMP2, presence.Contains(dId), missionBodies.Contains(dId));
 
                 // Out-of-range indicator for solar sails.
                 bool outOfRange = false;
@@ -1928,17 +1990,17 @@ namespace SolarExpanseLaunchWindows
             var presImg = presGO.AddComponent<Image>();
             presImg.color = Color.clear; presImg.raycastTarget = true;
             presGO.AddComponent<UI.LWTooltipTrigger>().Text =
-                "Presence: ● green = you have facilities built on this body (probes excluded); ○ grey = none.";
+                "Presence: ● green = you have facilities built on this body (probes excluded); " +
+                "● yellow = a scheduled or in-flight mission departs from or arrives here; ○ grey = neither.";
             var presLblGO = new GameObject("L", typeof(RectTransform));
             presLblGO.transform.SetParent(presGO.transform, false);
             var presLblRT = presLblGO.GetComponent<RectTransform>();
             presLblRT.anchorMin = Vector2.zero; presLblRT.anchorMax = Vector2.one; presLblRT.sizeDelta = Vector2.zero;
             var presTMP = presLblGO.AddComponent<TextMeshProUGUI>();
             if (FontAsset != null) presTMP.font = FontAsset;
-            presTMP.text = "○"; presTMP.fontSize = 13f;
             presTMP.alignment = TextAlignmentOptions.Center;
-            presTMP.color = new Color(0.45f, 0.45f, 0.45f, 0.9f);
             presTMP.enableWordWrapping = false; presTMP.raycastTarget = false;
+            SetPresenceDot(presTMP, hasPresence: false, hasMission: false);
             rowPresenceTMPs[dId] = presTMP;
 
             // Icon slot (12px)
