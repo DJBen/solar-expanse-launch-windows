@@ -89,6 +89,7 @@ namespace SolarExpanseLaunchWindows
         private double _craftDryMass   = 0.0;
         private double _craftFuel      = 0.0;
         private double _craftThrustN   = 0.0;
+        private int    _thrustChecked, _thrustFlagged; // per-refresh diagnostic counters
         private bool   _craftConstAccel;
         private double _thrustMultiplier = 1.0; // Economic.DeltaVMultiplayerCheckingThrust
 
@@ -937,8 +938,9 @@ namespace SolarExpanseLaunchWindows
                     var mult = econ?.GetType().GetProperty("DeltaVMultiplayerCheckingThrust", bfE)?.GetValue(econ)
                             ?? econ?.GetType().GetField("deltaVMultiplayerCheckingThrust", bfE)?.GetValue(econ);
                     if (mult != null) _thrustMultiplier = Convert.ToDouble(mult);
+                    else Plugin.Log.LogWarning("[LW] Economic.DeltaVMultiplayerCheckingThrust not found — thrust check will use 1.0");
                 }
-                catch { }
+                catch (Exception ex) { Plugin.Log.LogWarning($"[LW] thrust multiplier: {ex.Message}"); }
 
                 if (originIds.Count == 0)
                 {
@@ -1107,7 +1109,7 @@ namespace SolarExpanseLaunchWindows
         {
             _craftThrustN    = thrustN;
             _craftConstAccel = constAccel;
-            Plugin.Log.LogInfo($"[LW] SetCraft '{name}': exhaustV={exhaustV:F3} mass={dryMass:F1} fuel={fuel:F1} maxDv={maxDvKmS:F3}km/s solarRange={solarRangeAU:F2}AU");
+            Plugin.Log.LogInfo($"[LW] SetCraft '{name}': exhaustV={exhaustV:F3} mass={dryMass:F1} fuel={fuel:F1} maxDv={maxDvKmS:F3}km/s solarRange={solarRangeAU:F2}AU thrust={thrustN:F1}N constAccel={constAccel} thrustMult={_thrustMultiplier:F2}");
             _selectedCraftName   = name;
             _craftMaxDvKmS       = maxDvKmS;
             _craftSolarRangeAU   = solarRangeAU;
@@ -1296,7 +1298,11 @@ namespace SolarExpanseLaunchWindows
                     if (!_craftLogged)
                     {
                         if (isSolar) Plugin.Log.LogInfo($"[LW] craft '{scName}': solar sail, range={solarRangeAU:F2}AU maxCargo={maxCargo:F1}");
-                        else         Plugin.Log.LogInfo($"[LW] craft '{scName}': exhaustV={exhaustV:F3} mass={emptyMass:F1} fuel={fuel:F1} maxCargo={maxCargo:F1} maxDv={maxDvKmS:F1}km/s");
+                        else         Plugin.Log.LogInfo($"[LW] craft '{scName}': exhaustV={exhaustV:F3} mass={emptyMass:F1} fuel={fuel:F1} maxCargo={maxCargo:F1} maxDv={maxDvKmS:F1}km/s thrust={thrustN:F1}N constAccel={constAccel}");
+                        // A zero thrust reading silently disables the feasibility check —
+                        // say so rather than quietly showing every window as flyable.
+                        if (!isSolar && thrustN <= 0)
+                            Plugin.Log.LogWarning($"[LW] craft '{scName}': GetThrust returned 0 — thrust feasibility check disabled for this craft");
                     }
                     result.Add((scName, maxDvKmS, maxCargo, exhaustV, emptyMass, fuel, solarRangeAU, thrustN, constAccel, scIcon));
                     }
@@ -1954,6 +1960,7 @@ namespace SolarExpanseLaunchWindows
             }
 
             double physNow = ge != null ? ge.GetPhysicalTimeDouble() : 0;
+            _thrustChecked = 0; _thrustFlagged = 0;
             var presence = DestIds.Count > 0 ? GetPresenceBodyEphemIds() : new HashSet<string>();
             var missionBodies = DestIds.Count > 0 ? GetMissionBodyEphemIds() : new HashSet<string>();
 
@@ -1986,6 +1993,11 @@ namespace SolarExpanseLaunchWindows
 
                 if (cache.TryGetValue(dId, out var entry))
                 {
+                    if (entry.opt1.HasValue)
+                    {
+                        _thrustChecked++;
+                        if (ThrustShort(entry.opt1.Value)) _thrustFlagged++;
+                    }
                     // [0]=opt1Dep [1]=opt1Dv [2]=opt1Tvl [3]=fst1Dep [4]=fst1Dv [5]=fst1Tvl
                     // [6]=opt2Dep [7]=opt2Dv [8]=opt2Tvl [9]=fst2Dep [10]=fst2Dv [11]=fst2Tvl
                     // [12]=opt1Fuel [13]=fst1Fuel [14]=opt2Fuel [15]=fst2Fuel
@@ -2002,6 +2014,10 @@ namespace SolarExpanseLaunchWindows
                     }
                 }
             }
+
+            if (_thrustChecked > 0)
+                Plugin.Log.LogInfo($"[LW] Thrust check: {_thrustFlagged}/{_thrustChecked} optimal windows short on thrust " +
+                                   $"(thrust={_craftThrustN:F1}N mass={_craftDryMass + _craftFuel:F1}t mult={_thrustMultiplier:F2})");
         }
 
         // Sub-column widths — must match injector sub-header widths exactly.
