@@ -53,6 +53,34 @@ namespace SolarExpanseLaunchWindowsTests
             Assert.That(opt, Is.Not.Null, "optimal window from a near-Sun body");
         }
 
+        // The frontier must reproduce what a capped scan picks — that equivalence is what
+        // lets a craft switch re-pick Fastest without rescanning.
+        [Test]
+        public void Frontier_ReproducesCappedScanFastest()
+        {
+            var solver = new WindowedLambertSolver { TofLo = 0.05, TofHi = 3.0 };
+            var ephem  = MakeEphem();
+            var finder = new WindowFinder(solver, ephem, dvToKmS: 1.0);
+
+            var frontier = new List<FastestCandidate>();
+            finder.FindWindows("earth", "mars", 0.0, double.MaxValue, frontier);
+            Assert.That(frontier, Is.Not.Empty, "scan produced a frontier");
+
+            foreach (var cap in new[] { 0.5, 1.0, 2.0, 5.0, 10.0, 100.0 })
+            {
+                var scanned = finder.FindWindows("earth", "mars", 0.0, cap).fastest;
+                var picked  = FastestFrontier.Select(frontier, cap);
+                if (scanned == null)
+                {
+                    Assert.That(picked, Is.Null, $"cap {cap}");
+                    continue;
+                }
+                Assert.That(picked, Is.Not.Null, $"cap {cap}");
+                Assert.That(picked.Value.ArrivalEpoch, Is.EqualTo(scanned.Value.ArrivalEpoch).Within(1e-9), $"cap {cap} arrival");
+                Assert.That(picked.Value.DeltaVKmS, Is.EqualTo(scanned.Value.DeltaVKmS).Within(1e-9), $"cap {cap} Δv");
+            }
+        }
+
         [Test]
         public void GetSynodic_EarthToMars_ApproximatelyTwoPointOneYears()
         {

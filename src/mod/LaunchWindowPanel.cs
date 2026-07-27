@@ -335,12 +335,7 @@ namespace SolarExpanseLaunchWindows
                     _sidecarDirty = true;
                     SetCraft(capName, capMaxDv, capCargo, capExhV, capDry, capFuel, capSolar, capThrust, capCA);
                     HideCraftDropdown();
-                    ClearAllRowData();
-                    _cacheByOrigin.Clear();
-                    _retCacheByOrigin.Clear();
-                    _needsOpt2ByOrigin.Clear();
-                    _needsFstByOrigin.Clear();
-                    needsRefresh = true;
+                    OnCraftChanged();
                 }, icon);
             }
 
@@ -1540,12 +1535,81 @@ namespace SolarExpanseLaunchWindows
 
         // ── Refresh + row building ────────────────────────────────────────────────
 
+        // Switching craft used to wipe every cache and rescan the whole table. Almost
+        // nothing there actually depends on the craft:
+        //   • Optimal and Return windows come from a Lambert search that ignores the Δv
+        //     cap entirely, so they are craft-independent — keep them.
+        //   • Fuel and the thrust warning are computed at render time — free.
+        //   • Only Fastest is capped by the craft's Δv budget. Re-pick it from the
+        //     cached Pareto frontier; only entries with no frontier (loaded from a
+        //     sidecar, or computed before this existed) need a scan, and only when the
+        //     Fastest section is actually visible.
+        internal void OnCraftChanged()
+        {
+            double cap = CraftDvCapKmS;
+            int repicked = 0, rescan = 0;
+
+            foreach (var dId in cache.Keys.ToList())
+            {
+                var e = cache[dId];
+                bool haveF1 = _frontier1.TryGetValue(FKey(OriginId, dId), out var f1);
+                bool haveF2 = _frontier2.TryGetValue(FKey(OriginId, dId), out var f2);
+
+                if (haveF1) { e.fst1 = FastestFrontier.Select(f1, cap); repicked++; }
+                if (haveF2) e.fst2 = FastestFrontier.Select(f2, cap);
+                cache[dId] = e;
+
+                if (!haveF1 && e.opt1.HasValue && ShowFastest) { _needsFstRecalc.Add(dId); rescan++; }
+            }
+
+            // Other origins' cached Fastest values are now stale for this craft; drop
+            // just those, keeping their (craft-independent) Optimal windows.
+            foreach (var originKey in _cacheByOrigin.Keys.ToList())
+            {
+                var byDest = _cacheByOrigin[originKey];
+                foreach (var dId in byDest.Keys.ToList())
+                {
+                    var (o1, f1o, o2, f2o) = byDest[dId];
+                    var nf1 = _frontier1.TryGetValue(FKey(originKey, dId), out var ff1)
+                        ? FastestFrontier.Select(ff1, cap) : null;
+                    var nf2 = _frontier2.TryGetValue(FKey(originKey, dId), out var ff2)
+                        ? FastestFrontier.Select(ff2, cap) : null;
+                    byDest[dId] = (o1, nf1, o2, nf2);
+                    if (ff1 == null && o1.HasValue && ShowFastest)
+                    {
+                        if (!_needsFstByOrigin.TryGetValue(originKey, out var set))
+                            _needsFstByOrigin[originKey] = set = new HashSet<string>();
+                        set.Add(dId);
+                    }
+                }
+            }
+
+            Plugin.Log.LogInfo($"[LW] Craft change: {repicked} Fastest re-picked from frontier, {rescan} need rescan");
+            needsRefresh = true;
+        }
+
+        // Δv budget for Fastest selection. Solar sails get 0 — their continuous-thrust
+        // flight model makes an impulsive Fastest window meaningless (matches the
+        // dvCap=0 passed to the solver).
+        private double CraftDvCapKmS =>
+            _craftSolarRangeAU > 0 ? 0.0
+            : (_craftMaxDvKmS == double.MaxValue ? double.MaxValue : _craftMaxDvKmS);
+
+        // Pareto frontiers for the first and second window, keyed origin|dest so an
+        // origin switch needs no save/restore. Memory-only: not written to the sidecar.
+        private readonly Dictionary<string, List<FastestCandidate>> _frontier1 = new Dictionary<string, List<FastestCandidate>>();
+        private readonly Dictionary<string, List<FastestCandidate>> _frontier2 = new Dictionary<string, List<FastestCandidate>>();
+        private volatile Dictionary<string, (List<FastestCandidate> f1, List<FastestCandidate> f2)> _pendingFrontier;
+        private static string FKey(string originId, string destId) => (originId ?? "") + "|" + destId;
+
         private void ClearAllRowData()
         {
             cache.Clear();
             retCache.Clear();
             _nullCalcAt.Clear();
             _ret2Tried.Clear();
+            _frontier1.Clear();
+            _frontier2.Clear();
             foreach (var tmps in rowTMPs.Values)
                 foreach (var tmp in tmps)
                     if (tmp != null) { tmp.text = "—"; tmp.color = DashColor; }
@@ -1639,6 +1703,7 @@ namespace SolarExpanseLaunchWindows
             var t = new System.Threading.Thread(() =>
             {
                 var results     = new Dictionary<string, (LaunchWindow?, LaunchWindow?, LaunchWindow?, LaunchWindow?)>();
+                var frontiers   = new Dictionary<string, (List<FastestCandidate> f1, List<FastestCandidate> f2)>();
                 var retResults  = new Dictionary<string, (LaunchWindow?, LaunchWindow?)>();
                 var resultsLock = new object();
 
@@ -1665,13 +1730,19 @@ namespace SolarExpanseLaunchWindows
                         (LaunchWindow? opt1, LaunchWindow? fst1, LaunchWindow? opt2, LaunchWindow? fst2) entry;
                         try
                         {
-                            var (o1, f1, syn) = localFinder.FindWindows(originId, dId, physNow, dvCap);
+                            // Capture the Δv/arrival frontiers so a later craft switch
+                            // can re-pick Fastest without rescanning.
+                            var fr1 = new List<FastestCandidate>();
+                            List<FastestCandidate> fr2 = null;
+                            var (o1, f1, syn) = localFinder.FindWindows(originId, dId, physNow, dvCap, fr1);
                             LaunchWindow? o2 = null, f2 = null;
                             if (syn > 0 && showNextSnap)
                             {
-                                var (oo2, ff2, _) = localFinder.FindWindows(originId, dId, physNow + syn, dvCap);
+                                fr2 = new List<FastestCandidate>();
+                                var (oo2, ff2, _) = localFinder.FindWindows(originId, dId, physNow + syn, dvCap, fr2);
                                 o2 = oo2; f2 = ff2;
                             }
+                            lock (resultsLock) { frontiers[dId] = (fr1, fr2); }
                             entry = (o1, f1, o2, f2);
                         }
                         catch (Exception ex)
@@ -1714,8 +1785,14 @@ namespace SolarExpanseLaunchWindows
                             double startTime  = syn > 0
                                 ? item.opt1.DepartureEpoch + syn - bufferPhys
                                 : item.opt1.DepartureEpoch;
-                            var (o2, f2, _) = localFinder.FindWindows(originId, item.dId, startTime, dvCap);
-                            lock (resultsLock) { results[item.dId] = (item.opt1, item.fst1, o2, f2); }
+                            var fr2p = new List<FastestCandidate>();
+                            var (o2, f2, _) = localFinder.FindWindows(originId, item.dId, startTime, dvCap, fr2p);
+                            lock (resultsLock)
+                            {
+                                results[item.dId] = (item.opt1, item.fst1, o2, f2);
+                                frontiers.TryGetValue(item.dId, out var prevF);
+                                frontiers[item.dId] = (prevF.f1, fr2p);
+                            }
                             if (showRetSnap && o2.HasValue)
                             {
                                 // Keep the cached ret1; only the new second window needs a return.
@@ -1744,14 +1821,18 @@ namespace SolarExpanseLaunchWindows
                         try
                         {
                             double syn = localFinder.GetSynodic(originId, item.dId);
-                            var r1 = localFinder.FindWindows(originId, item.dId, physNow, dvCap);
+                            var fr1f = new List<FastestCandidate>();
+                            List<FastestCandidate> fr2f = null;
+                            var r1 = localFinder.FindWindows(originId, item.dId, physNow, dvCap, fr1f);
                             LaunchWindow? f1 = r1.fastest;
                             LaunchWindow? f2 = null;
                             if (syn > 0 && showNextSnap)
                             {
-                                var r2 = localFinder.FindWindows(originId, item.dId, physNow + syn, dvCap);
+                                fr2f = new List<FastestCandidate>();
+                                var r2 = localFinder.FindWindows(originId, item.dId, physNow + syn, dvCap, fr2f);
                                 f2 = r2.fastest;
                             }
+                            lock (resultsLock) { frontiers[item.dId] = (fr1f, fr2f); }
                             lock (resultsLock) { results[item.dId] = (item.opt1, f1, item.opt2, f2); }
                         }
                         catch (Exception ex)
@@ -1787,6 +1868,7 @@ namespace SolarExpanseLaunchWindows
                 );
 
                 _pendingRetCache = retResults;
+                _pendingFrontier = frontiers;
                 _pendingCache = results;
                 _calcDone = true;   // volatile write: flush _pendingCache before signalling
             });
@@ -1821,6 +1903,16 @@ namespace SolarExpanseLaunchWindows
                             _ret2Tried.Remove(kv.Key);
                     }
                     _pendingRetCache = null;
+                }
+                if (_pendingFrontier != null)
+                {
+                    foreach (var kv in _pendingFrontier)
+                    {
+                        var fkey = FKey(OriginId, kv.Key);
+                        if (kv.Value.f1 != null) _frontier1[fkey] = kv.Value.f1;
+                        if (kv.Value.f2 != null) _frontier2[fkey] = kv.Value.f2;
+                    }
+                    _pendingFrontier = null;
                 }
                 _needsOpt2Recalc.Clear();
                 _needsFstRecalc.Clear();
@@ -2290,6 +2382,8 @@ namespace SolarExpanseLaunchWindows
             retCache.Remove(dId);
             _nullCalcAt.Remove(dId);
             _ret2Tried.Remove(dId);
+            foreach (var k in _frontier1.Keys.Where(k => k.EndsWith("|" + dId, StringComparison.Ordinal)).ToList())
+            { _frontier1.Remove(k); _frontier2.Remove(k); }
             rowTMPs.Remove(dId);
             rowNameTMPs.Remove(dId);
             rowIconImgs.Remove(dId);

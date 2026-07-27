@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace SolarExpanseLaunchWindows
 {
@@ -28,8 +29,12 @@ namespace SolarExpanseLaunchWindows
             return freqDiff > 0 ? 1.0 / freqDiff : tO;
         }
 
+        // frontierOut, when supplied, receives the Pareto frontier of (arrival, Δv)
+        // solutions — enough to re-pick the Fastest window for any craft Δv budget
+        // without rescanning. See FastestFrontier.
         public (LaunchWindow? optimal, LaunchWindow? fastest, double synodicPeriod) FindWindows(
-            string originId, string destId, double physNow, double dvCap = double.MaxValue)
+            string originId, string destId, double physNow, double dvCap = double.MaxValue,
+            List<FastestCandidate> frontierOut = null)
         {
             double mu = ephem.SunMu;
             if (mu <= 0) return (null, null, 0);
@@ -89,6 +94,18 @@ namespace SolarExpanseLaunchWindows
             double earliestArr = double.MaxValue;
             double fastDv = 0, fastDep = 0, fastArr = 0;
 
+            // Cheapest solution per arrival slot, for the Pareto frontier. The arrival
+            // grid is shared by every departure column, so slot index k is already in
+            // ascending arrival order — no sorting needed.
+            double[] slotDv  = null;
+            double[] slotDep = null;
+            if (frontierOut != null)
+            {
+                slotDv  = new double[ArrIntervals + 1];
+                slotDep = new double[ArrIntervals + 1];
+                for (int k = 0; k <= ArrIntervals; k++) slotDv[k] = double.MaxValue;
+            }
+
             for (int j = 0; j <= DepIntervals; j++)
             {
                 double tDep   = depStart + j * depStep;
@@ -128,6 +145,12 @@ namespace SolarExpanseLaunchWindows
                         fastDep = tDep;
                         fastArr = tArr;
                     }
+
+                    if (slotDv != null && dv < slotDv[k])
+                    {
+                        slotDv[k]  = dv;
+                        slotDep[k] = tDep;
+                    }
                 }
             }
 
@@ -138,6 +161,19 @@ namespace SolarExpanseLaunchWindows
             LaunchWindow? fastest = earliestArr < double.MaxValue
                 ? new LaunchWindow(fastDep, fastArr, fastDv * dvToKmS)
                 : (LaunchWindow?)null;
+
+            if (frontierOut != null)
+            {
+                var perSlot = new List<FastestCandidate>();
+                for (int k = 0; k <= ArrIntervals; k++)
+                {
+                    if (slotDv[k] == double.MaxValue) continue;
+                    perSlot.Add(new FastestCandidate(
+                        slotDep[k], arrStart + k * arrStep, slotDv[k] * dvToKmS));
+                }
+                frontierOut.Clear();
+                frontierOut.AddRange(FastestFrontier.Build(perSlot));
+            }
 
             return (optimal, fastest, tSynodic);
         }
